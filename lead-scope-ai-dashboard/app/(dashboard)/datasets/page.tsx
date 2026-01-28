@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { api } from "@/lib/api"
 import { NetworkError } from "@/lib/api"
-import type { Dataset } from "@/lib/types"
+import type { Dataset, ResponseMeta } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
@@ -48,8 +48,8 @@ const statusConfig = {
 
 export default async function DatasetsPage() {
   let datasets: Dataset[] | null = null
-  let meta = {
-    plan_id: 'demo' as const,
+  let meta: ResponseMeta = {
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

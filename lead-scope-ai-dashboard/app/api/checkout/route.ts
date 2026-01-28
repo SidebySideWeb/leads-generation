@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withGuard, type GuardedRequest } from '@/lib/api-guard'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-  typescript: true,
-})
-
 // Plan configuration
 const plans = {
   snapshot: {
@@ -25,6 +20,17 @@ const plans = {
 
 export const POST = withGuard(async (request: GuardedRequest) => {
   try {
+    const secretKey = process.env.STRIPE_SECRET_KEY
+    if (!secretKey) {
+      return NextResponse.json(
+        { error: 'Stripe is not configured' },
+        { status: 503 }
+      )
+    }
+
+    const stripe = new Stripe(secretKey, {
+      apiVersion: '2025-12-15.clover',
+    })
     // User and permissions already validated by guard
     const user = request.user
 
@@ -82,9 +88,9 @@ export const POST = withGuard(async (request: GuardedRequest) => {
       },
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       sessionId: session.id,
-      url: session.url 
+      url: session.url,
     })
   } catch (error: any) {
     console.error('Stripe checkout error:', error)
@@ -93,4 +99,4 @@ export const POST = withGuard(async (request: GuardedRequest) => {
       { status: 500 }
     )
   }
-}
+})

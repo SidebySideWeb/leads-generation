@@ -7,7 +7,7 @@
  * structure. The UI should never detect or depend on storage mode.
  */
 
-import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, PaginatedResponse, Industry, City } from './types';
+import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry, City, User } from './types';
 
 /**
  * API client configuration
@@ -293,10 +293,104 @@ class ApiClient {
    * @returns Promise with checkout session URL
    */
   async createCheckoutSession(planId: string, userId: string): Promise<{ data: { sessionId: string; url: string } | null; meta: ResponseMeta }> {
-    return this.request<{ sessionId: string; url: string }>('/api/checkout', {
+    // Base URL already includes `/api`, so the endpoint here is `/checkout`
+    return this.request<{ sessionId: string; url: string }>('/checkout', {
       method: 'POST',
       body: JSON.stringify({ planId, userId }),
     });
+  }
+
+  /**
+   * Login with email and password
+   * Thin client helper; actual auth logic lives on the backend.
+   */
+  async login(
+    email: string,
+    password: string
+  ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
+    try {
+      const url = `${this.baseUrl.replace(/\/api$/, '')}/api/auth/login`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const json = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message =
+          json?.error ||
+          json?.message ||
+          `Login failed with status ${response.status}`;
+        return {
+          data: null,
+          error: { message },
+        };
+      }
+
+      const token = json.token ?? json.data?.token;
+      return {
+        data: token ? { token } : null,
+      };
+    } catch {
+      return {
+        data: null,
+        error: { message: 'Network error. Please try again.' },
+      };
+    }
+  }
+
+  /**
+   * Register a new user
+   * Mirrors the login helper shape.
+   */
+  async register(
+    email: string,
+    password: string
+  ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
+    try {
+      const url = `${this.baseUrl.replace(/\/api$/, '')}/api/auth/register`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const json = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message =
+          json?.error ||
+          json?.message ||
+          `Registration failed with status ${response.status}`;
+        return {
+          data: null,
+          error: { message },
+        };
+      }
+
+      const token = json.token ?? json.data?.token;
+      return {
+        data: token ? { token } : null,
+      };
+    } catch {
+      return {
+        data: null,
+        error: { message: 'Network error. Please try again.' },
+      };
+    }
+  }
+
+  /**
+   * Get current authenticated user (from JWT cookie via API route)
+   */
+  async getCurrentUser(): Promise<{ data: User | null; meta: ResponseMeta }> {
+    return this.request<User>('/auth/user');
   }
 }
 

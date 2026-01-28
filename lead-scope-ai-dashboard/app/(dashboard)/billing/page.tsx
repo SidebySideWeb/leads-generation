@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -83,7 +83,7 @@ const invoices: Array<{
   status: "paid" | "pending" | "failed"
 }> = []
 
-export default function BillingPage() {
+function BillingPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
@@ -376,5 +376,13 @@ export default function BillingPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading billing...</div>}>
+      <BillingPageInner />
+    </Suspense>
   )
 }

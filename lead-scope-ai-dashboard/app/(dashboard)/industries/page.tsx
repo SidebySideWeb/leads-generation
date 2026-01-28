@@ -25,7 +25,7 @@ import {
   Megaphone,
 } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
-import type { Industry } from "@/lib/types"
+import type { Industry, ResponseMeta } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
@@ -48,8 +48,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export default function IndustriesPage() {
   const [industries, setIndustries] = useState<Industry[]>([])
-  const [meta, setMeta] = useState({
-    plan_id: 'demo' as const,
+  const [meta, setMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

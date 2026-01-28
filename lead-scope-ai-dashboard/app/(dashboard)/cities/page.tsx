@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MapPin, Building2, Users, Search, ArrowRight } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
-import type { City } from "@/lib/types"
+import type { City, ResponseMeta } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 
 export default function CitiesPage() {
   const [cities, setCities] = useState<City[]>([])
-  const [meta, setMeta] = useState({
-    plan_id: 'demo' as const,
+  const [meta, setMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

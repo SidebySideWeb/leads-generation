@@ -162,10 +162,10 @@ export function workerGuard(request: NextRequest): NextResponse | null {
 /**
  * Higher-order function to wrap internal route handlers with worker guard
  */
-export function withWorkerGuard<T = any>(
-  handler: (request: NextRequest, context?: any) => Promise<NextResponse<T>>
+export function withWorkerGuard(
+  handler: (request: NextRequest, context?: any) => Promise<NextResponse<any>>
 ) {
-  return async (request: NextRequest, context?: any): Promise<NextResponse<T>> => {
+  return async (request: NextRequest, context?: any): Promise<NextResponse<any>> => {
     // Check worker guard
     const guardResponse = workerGuard(request)
     if (guardResponse) {

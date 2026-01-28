@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from './auth'
 import { Pool } from 'pg'
 import type { UserPermissions } from './permissions'
+import type { PlanId } from './types'
 
 // Initialize database connection
 const pool = new Pool({
@@ -31,7 +32,7 @@ export interface GuardedRequest extends NextRequest {
   user: {
     id: string
     email: string
-    plan: 'demo' | 'starter' | 'pro'
+    plan: PlanId
   }
   permissions: UserPermissions
 }
@@ -41,7 +42,7 @@ export interface GuardResult {
   user?: {
     id: string
     email: string
-    plan: 'demo' | 'starter' | 'pro'
+    plan: PlanId
   }
   permissions?: UserPermissions
   error?: string
@@ -62,14 +63,14 @@ async function validateSubscription(userId: string): Promise<{
   valid: boolean
   reason?: string
   subscription?: {
-    plan: 'demo' | 'starter' | 'pro'
+    plan: PlanId
     status: string
     current_period_end: Date | null
   }
 }> {
   try {
     const result = await pool.query<{
-      plan: 'demo' | 'starter' | 'pro'
+      plan: PlanId
       status: string
       current_period_end: Date | null
     }>(
@@ -314,20 +315,17 @@ export async function apiGuard(request: NextRequest): Promise<GuardResult> {
  * 
  * Wraps an API route handler with authentication and subscription validation.
  * Automatically attaches user and permissions to request context.
- * 
- * @param handler - API route handler function
- * @returns Wrapped handler with guard applied
  */
-export function withGuard<T = any>(
+export function withGuard(
   handler: (
     request: GuardedRequest,
     context?: any
-  ) => Promise<NextResponse<T>>
+  ) => Promise<NextResponse<any>>
 ) {
   return async (
     request: NextRequest,
     context?: any
-  ): Promise<NextResponse<T>> => {
+  ): Promise<NextResponse<any>> => {
     // Apply guard
     const guardResult = await apiGuard(request)
 

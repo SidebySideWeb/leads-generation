@@ -52,7 +52,8 @@ export async function decodeJWT(token: string): Promise<{
   plan: 'demo' | 'starter' | 'pro'
 } | null> {
   try {
-    const { payload } = await jose.jwtDecode(token)
+    // Decode without verification – for read-only scenarios
+    const payload = jose.decodeJwt(token)
     
     if (
       typeof payload.id === 'string' &&

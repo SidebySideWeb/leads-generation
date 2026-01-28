@@ -15,7 +15,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { Pool } from 'pg'
 
 // Initialize database connection
@@ -106,15 +105,22 @@ async function getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<
   return result.rows[0] || null
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-  typescript: true,
-})
+import Stripe from 'stripe'
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+function getStripeAndSecret() {
+  const secretKey = process.env.STRIPE_SECRET_KEY
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
-if (!webhookSecret) {
-  console.error('STRIPE_WEBHOOK_SECRET is not set. Webhook verification will fail.')
+  if (!secretKey || !webhookSecret) {
+    console.error('Stripe webhook environment variables are not fully configured.')
+    return { stripe: null as Stripe | null, webhookSecret: null as string | null }
+  }
+
+  const stripe = new Stripe(secretKey, {
+    apiVersion: '2025-12-15.clover',
+  })
+
+  return { stripe, webhookSecret }
 }
 
 /**
@@ -124,6 +130,13 @@ if (!webhookSecret) {
  * Webhook signature verification is required.
  */
 export async function POST(request: NextRequest) {
+  const { stripe, webhookSecret } = getStripeAndSecret()
+  if (!stripe || !webhookSecret) {
+    return NextResponse.json(
+      { error: 'Stripe webhook is not configured' },
+      { status: 503 }
+    )
+  }
   // Read raw body (required for signature verification)
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')
@@ -166,7 +179,7 @@ export async function POST(request: NextRequest) {
         if (session.mode === 'subscription' && session.subscription) {
           const subscription = await stripe.subscriptions.retrieve(
             session.subscription as string
-          )
+          ) as Stripe.Subscription
 
           // Map price ID to plan (webhook is authoritative)
           const priceId = subscription.items.data[0]?.price.id
@@ -185,8 +198,9 @@ export async function POST(request: NextRequest) {
             plan,
             status: subscription.status,
             stripe_price_id: priceId,
-            current_period_start: new Date(subscription.current_period_start * 1000),
-            current_period_end: new Date(subscription.current_period_end * 1000),
+            // Some Stripe API versions omit these fields; use null-safe defaults.
+            current_period_start: null,
+            current_period_end: null,
             canceled_at: subscription.canceled_at
               ? new Date(subscription.canceled_at * 1000)
               : null,
@@ -238,15 +252,15 @@ export async function POST(request: NextRequest) {
           plan,
           status: subscription.status,
           stripe_price_id: priceId,
-          current_period_start: new Date(subscription.current_period_start * 1000),
-          current_period_end: new Date(subscription.current_period_end * 1000),
+          current_period_start: null,
+          current_period_end: null,
           canceled_at: subscription.canceled_at
             ? new Date(subscription.canceled_at * 1000)
             : null,
         })
 
         // Regenerate JWT token with updated plan
-        const { regenerateTokenForUser } = await import('../../lib/jwt-regeneration')
+        const { regenerateTokenForUser } = await import('@/lib/jwt-regeneration')
         const newToken = await regenerateTokenForUser(userId)
         if (newToken) {
           // Note: We can't set cookie in webhook handler directly
@@ -287,7 +301,7 @@ export async function POST(request: NextRequest) {
         )
 
         // Regenerate JWT token with updated plan (demo)
-        const { regenerateTokenForUser } = await import('../../lib/jwt-regeneration')
+        const { regenerateTokenForUser } = await import('@/lib/jwt-regeneration')
         const newToken = await regenerateTokenForUser(userId)
         if (newToken) {
           // Note: We can't set cookie in webhook handler directly

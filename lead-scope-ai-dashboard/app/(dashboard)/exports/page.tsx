@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Download, FileSpreadsheet, Info, CheckCircle, Clock, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, NetworkError } from "@/lib/api"
-import type { ExportResult } from "@/lib/types"
+import type { ExportResult, ResponseMeta } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
@@ -38,8 +38,8 @@ const statusConfig = {
 
 export default async function ExportsPage() {
   let exports: ExportResult[] | null = null
-  let meta = {
-    plan_id: 'demo' as const,
+  let meta: ResponseMeta = {
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

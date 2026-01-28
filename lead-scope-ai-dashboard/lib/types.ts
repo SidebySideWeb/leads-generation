@@ -3,10 +3,13 @@
  * These types mirror backend API responses
  */
 
+// Canonical plan identifier shared across the frontend
+export type PlanId = 'demo' | 'starter' | 'pro';
+
 export interface User {
   id: string;
   email: string;
-  plan: 'demo' | 'starter' | 'pro';
+  plan: PlanId;
   name?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -20,7 +23,7 @@ export interface User {
  * should be based on this meta, never on storage mode detection.
  */
 export interface ResponseMeta {
-  plan_id: 'demo' | 'starter' | 'pro';
+  plan_id: PlanId;
   gated: boolean;
   gate_reason?: string;
   total_available: number;

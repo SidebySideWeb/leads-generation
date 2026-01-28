@@ -32,7 +32,7 @@ import {
 import { ArrowLeft, Download, Filter, Info, ExternalLink, RefreshCw, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, NetworkError } from "@/lib/api"
-import type { Dataset, Business } from "@/lib/types"
+import type { Dataset, Business, ResponseMeta } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -59,15 +59,15 @@ export default function DatasetDetailPage() {
   const [contactTypeFilter, setContactTypeFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [dataset, setDataset] = useState<Dataset | null>(null)
-  const [datasetMeta, setDatasetMeta] = useState({
-    plan_id: 'demo' as const,
+  const [datasetMeta, setDatasetMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,
   })
   const [businesses, setBusinesses] = useState<Business[]>([])
-  const [businessesMeta, setBusinessesMeta] = useState({
-    plan_id: 'demo' as const,
+  const [businessesMeta, setBusinessesMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

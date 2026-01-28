@@ -18,7 +18,8 @@ import { Search, Building2, MapPin, Info, CreditCard, Sparkles } from "lucide-re
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { Industry, City } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import type { Industry, City, ResponseMeta } from "@/lib/types"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { usePermissions } from "@/contexts/PermissionsContext"
 import { canPerformAction } from "@/lib/permissions"
@@ -29,15 +30,15 @@ export default function DiscoverPage() {
   const [citySearch, setCitySearch] = useState("")
   const [loading, setLoading] = useState(false)
   const [industries, setIndustries] = useState<Industry[]>([])
-  const [industriesMeta, setIndustriesMeta] = useState({
-    plan_id: 'demo' as const,
+  const [industriesMeta, setIndustriesMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,
   })
   const [cities, setCities] = useState<City[]>([])
-  const [citiesMeta, setCitiesMeta] = useState({
-    plan_id: 'demo' as const,
+  const [citiesMeta, setCitiesMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

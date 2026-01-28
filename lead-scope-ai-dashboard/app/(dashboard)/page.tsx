@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { getCurrentUser } from "@/lib/auth-server"
+import type { ResponseMeta } from "@/lib/types"
 
 interface StatCardProps {
   title: string
@@ -41,19 +42,9 @@ export default async function DashboardPage() {
   const userPlan = user?.plan || 'demo'
 
   let stats: { totalBusinesses: number; activeContacts: number; citiesScanned: number; lastRefresh: string | null } | null = null
-  let statsMeta = {
-    plan_id: userPlan,
-    gated: false,
-    total_available: 0,
-    total_returned: 0,
-  }
+  let statsMeta: ResponseMeta | null = null
   let recentContacts: Array<{ id: string; name: string; city: string; industry: string; email: string | null; phone: string | null; website: string | null; lastVerifiedAt: string | null }> | null = null
-  let contactsMeta = {
-    plan_id: 'demo' as const,
-    gated: false,
-    total_available: 0,
-    total_returned: 0,
-  }
+  let contactsMeta: ResponseMeta | null = null
   let networkError: string | null = null
 
   try {
@@ -130,11 +121,11 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {statsMeta.gated && <GateBanner meta={statsMeta} />}
+      {statsMeta?.gated && <GateBanner meta={statsMeta} />}
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {!stats ? (
+        {!stats || !statsMeta ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="bg-card border-border">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -177,7 +168,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {statsMeta.total_available > 0 && (
+      {statsMeta && statsMeta.total_available > 0 && (
         <MetaInfo meta={statsMeta} className="flex justify-end" />
       )}
 
@@ -204,7 +195,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            {contactsMeta.total_available > 0 && <MetaInfo meta={contactsMeta} />}
+            {contactsMeta && contactsMeta.total_available > 0 && <MetaInfo meta={contactsMeta} />}
             <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
               <Link href="/(dashboard)/datasets">
                 View all
@@ -214,8 +205,10 @@ export default async function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {contactsMeta.gated && <GateBanner meta={contactsMeta} />}
-          <RecentContactsTable contacts={recentContacts} meta={contactsMeta} />
+          {contactsMeta?.gated && contactsMeta && <GateBanner meta={contactsMeta} />}
+          <RecentContactsTable contacts={recentContacts} meta={
+            contactsMeta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 }
+          } />
         </CardContent>
       </Card>
     </div>

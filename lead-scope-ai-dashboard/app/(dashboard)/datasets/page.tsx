@@ -27,6 +27,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { ExportAction } from "@/components/dashboard/export-action"
+import { getCurrentUser } from "@/lib/auth-server"
+import { redirect } from "next/navigation"
 
 const statusConfig = {
   snapshot: {
@@ -47,6 +49,12 @@ const statusConfig = {
 } as const
 
 export default async function DatasetsPage() {
+  const user = await getCurrentUser()
+  
+  if (!user) {
+    redirect('/login')
+  }
+
   let datasets: Dataset[] | null = null
   let meta: ResponseMeta = {
     plan_id: 'demo',

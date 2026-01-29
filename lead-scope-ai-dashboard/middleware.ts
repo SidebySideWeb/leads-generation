@@ -39,16 +39,18 @@ export function middleware(request: NextRequest) {
 
   // Protect dashboard routes
   // Note: Route groups like (dashboard) don't appear in URLs
+  // Cookie is set by backend API (api.leadscope.gr) with domain '.leadscope.gr'
+  // Allow request through - let page components handle auth check
+  // This is necessary because cross-domain cookies may not be immediately available
+  // The page will check auth and redirect if needed
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/datasets') || 
       pathname.startsWith('/discover') || pathname.startsWith('/exports') ||
       pathname.startsWith('/billing') || pathname.startsWith('/settings') ||
       pathname.startsWith('/cities') || pathname.startsWith('/industries') ||
       pathname.startsWith('/refresh')) {
-    if (!token) {
-      // Redirect to login if no token
-      const loginUrl = new URL('/login', request.url)
-      return NextResponse.redirect(loginUrl)
-    }
+    // Don't block here - let the page component check authentication
+    // Pages will use getServerUser() which properly handles cross-domain cookies
+    return NextResponse.next()
   }
 
   // API routes are protected by withGuard() in route handlers

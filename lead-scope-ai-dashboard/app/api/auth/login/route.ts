@@ -47,13 +47,21 @@ export async function POST(request: NextRequest) {
         data: { token },
       })
 
-      // Set http-only cookie
+      // Set http-only cookie with cross-domain settings
       response.cookies.set('auth-token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true, // HTTPS only (required for sameSite: 'none')
+        sameSite: 'none', // Required for cross-domain (www.leadscope.gr -> api.leadscope.gr)
+        domain: '.leadscope.gr', // Shared domain cookie
         maxAge: 60 * 60 * 24 * 7, // 7 days
         path: '/',
+      })
+      
+      // Debug logging (temporary)
+      console.log('[AUTH] Login cookie set:', {
+        origin: request.headers.get('origin'),
+        cookieSet: true,
+        domain: '.leadscope.gr',
       })
 
       return response

@@ -25,6 +25,7 @@ import { parseHtml, isContactPage } from '../crawl/parser.js';
 import { extractEmails, extractPhones, extractSocial } from '../crawl/extractors.js';
 import { normalizeUrl, canonicalize, sameRegistrableDomain, extractDomain, resolveUrl } from '../crawl/url.js';
 import { saveContacts, loadContacts } from '../storage/localDatasetStore.js';
+import { upsertCrawlResultV1 } from '../db/crawlResultsV1.js';
 import type { Contact } from '../types/index.js';
 
 export interface CrawlWorkerV1SimpleInput {
@@ -33,6 +34,7 @@ export interface CrawlWorkerV1SimpleInput {
     website: string;
   };
   maxDepth: number;
+  pagesLimit?: number; // Optional pages limit (if not provided, no limit enforced)
   datasetId: string; // For saving to local store
 }
 
@@ -78,7 +80,7 @@ function isContactRelatedAnchor(anchorText: string): boolean {
 export async function crawlWorkerV1Simple(
   input: CrawlWorkerV1SimpleInput
 ): Promise<CrawlWorkerV1SimpleResult> {
-  const { business, maxDepth, datasetId } = input;
+  const { business, maxDepth, pagesLimit, datasetId } = input;
   const { id: businessId, website } = business;
 
   const visited = new Set<string>();
@@ -94,6 +96,13 @@ export async function crawlWorkerV1Simple(
     twitter?: string;
     youtube?: string;
   } = {};
+  
+  // Track errors and contact pages for DB persistence (declared outside try for catch block access)
+  const errors: Array<{ url?: string; message: string; code?: string }> = [];
+  const contactPages = new Set<string>();
+  
+  // Track crawl start time (declared outside try for catch block access)
+  const startedAt = new Date();
 
   try {
     // 1. Normalize and validate website URL
@@ -118,8 +127,14 @@ export async function crawlWorkerV1Simple(
     queue.push({ url: normalized, depth: 0 });
     visited.add(canonicalize(normalized));
 
-    // 3. BFS crawl
+    // 3. BFS crawl with pages limit
     while (queue.length > 0) {
+      // Check pages limit if set
+      if (pagesLimit !== undefined && visited.size >= pagesLimit) {
+        console.log(`[crawlWorkerV1Simple] Pages limit reached: ${pagesLimit} pages`);
+        break;
+      }
+
       const { url, depth } = queue.shift()!;
 
       // Stop if max depth reached
@@ -132,12 +147,22 @@ export async function crawlWorkerV1Simple(
         const fetchResult = await fetchUrl(url, { timeout: 10000 });
 
         if (fetchResult.status !== 200) {
-          console.warn(`[crawlWorkerV1Simple] HTTP ${fetchResult.status} for ${url}`);
+          const errorMsg = `HTTP ${fetchResult.status} for ${url}`;
+          console.warn(`[crawlWorkerV1Simple] ${errorMsg}`);
+          errors.push({ url, message: errorMsg, code: `HTTP_${fetchResult.status}` });
           continue;
         }
 
         // Parse HTML
         const parsed = parseHtml(fetchResult.content, fetchResult.finalUrl, baseDomain);
+
+        // Track contact pages
+        if (isContactPage(url, '')) {
+          contactPages.add(url);
+        }
+        for (const contactUrl of parsed.contactPageUrls) {
+          contactPages.add(contactUrl);
+        }
 
         // Extract emails
         const emails = extractEmails(fetchResult.content, fetchResult.finalUrl, parsed.text);
@@ -211,13 +236,49 @@ export async function crawlWorkerV1Simple(
           await new Promise(resolve => setTimeout(resolve, 400));
         }
       } catch (error: any) {
-        console.warn(`[crawlWorkerV1Simple] Error crawling ${url}:`, error.message);
+        const errorMsg = error.message || 'Unknown error';
+        console.warn(`[crawlWorkerV1Simple] Error crawling ${url}:`, errorMsg);
+        errors.push({ url, message: errorMsg });
         // Continue with next URL
         continue;
       }
     }
 
-    // 4. Convert extracted data to Contact format and deduplicate
+    // 4. Crawl social media pages for additional contacts
+    // Only crawl if we found social links on the homepage
+    if (Object.keys(allSocial).length > 0) {
+      console.log(`[crawlWorkerV1Simple] Crawling social media pages for additional contacts...`);
+      try {
+        const socialMediaContacts = await crawlSocialMediaPages(allSocial);
+        
+        // Add emails from social media
+        for (const email of socialMediaContacts.emails) {
+          if (!allEmails.has(email.value)) {
+            allEmails.set(email.value, {
+              value: email.value,
+              source_url: email.source_url,
+            });
+          }
+        }
+        
+        // Add phones from social media
+        for (const phone of socialMediaContacts.phones) {
+          if (!allPhones.has(phone.value)) {
+            allPhones.set(phone.value, {
+              value: phone.value,
+              source_url: phone.source_url,
+            });
+          }
+        }
+        
+        console.log(`[crawlWorkerV1Simple] Social media crawl: Added ${socialMediaContacts.emails.length} emails, ${socialMediaContacts.phones.length} phones`);
+      } catch (error: any) {
+        console.warn(`[crawlWorkerV1Simple] Social media crawl failed: ${error.message}`);
+        // Continue even if social media crawl fails
+      }
+    }
+
+    // 5. Convert extracted data to Contact format and deduplicate
     const contacts: Contact[] = [];
     const contactIds = new Set<string>(); // For deduplication
 
@@ -263,7 +324,7 @@ export async function crawlWorkerV1Simple(
       }
     }
 
-    // 5. Merge with existing contacts and save to local dataset store
+    // 6. Merge with existing contacts and save to local dataset store
     let newContactsCount = 0;
     if (contacts.length > 0) {
       // Load existing contacts to avoid duplicates
@@ -314,12 +375,51 @@ export async function crawlWorkerV1Simple(
       await saveContacts(datasetId, mergedContacts);
     }
 
-    // 6. Return result
+    // 7. Persist crawl result to database (if available)
+    const finishedAt = new Date();
+    const pagesVisited = visited.size;
+    
+    // Determine crawl_status: 'completed' if we visited at least 1 page and no errors, 'partial' if errors, 'not_crawled' if 0 pages
+    let crawlStatus: 'not_crawled' | 'partial' | 'completed';
+    if (pagesVisited === 0) {
+      crawlStatus = 'not_crawled';
+    } else if (errors.length > 0) {
+      crawlStatus = 'partial';
+    } else {
+      crawlStatus = 'completed';
+    }
+
+    // Convert businessId (number) to string for DB
+    const businessIdStr = String(businessId);
+
+    // Prepare data for DB persistence
+    try {
+      await upsertCrawlResultV1({
+        businessId: businessIdStr,
+        datasetId,
+        websiteUrl: normalized,
+        startedAt,
+        finishedAt,
+        pagesVisited,
+        crawlStatus,
+        emails: Array.from(allEmails.values()),
+        phones: Array.from(allPhones.values()),
+        contactPages: Array.from(contactPages),
+        social: allSocial,
+        errors,
+      });
+      console.log(`[crawl_results] Upserted v1 row for business ${businessIdStr} dataset ${datasetId}`);
+    } catch (dbError: any) {
+      // Log warning but don't fail the crawl
+      console.warn(`[crawl_results] Failed to upsert v1 row, falling back to local store: ${dbError.message}`);
+    }
+
+    // 8. Return result
     return {
       success: true,
       business_id: businessId,
       website_url: normalized,
-      pages_crawled: visited.size,
+      pages_crawled: pagesVisited,
       emails_found: allEmails.size,
       phones_found: allPhones.size,
       social_links_found: Object.keys(allSocial).length,
@@ -327,11 +427,43 @@ export async function crawlWorkerV1Simple(
     };
   } catch (error: any) {
     console.error(`[crawlWorkerV1Simple] Error crawling business ${businessId}:`, error);
+    
+    // Try to persist partial results even on failure
+    const finishedAt = new Date();
+    const pagesVisited = visited.size;
+    const businessIdStr = String(businessId);
+    
+    // Determine crawl_status: always 'partial' on error
+    const crawlStatus: 'partial' = 'partial';
+    
+    // Add the main error to errors array
+    const finalErrors = [...errors, { message: error.message || 'Crawl failed' }];
+    
+    try {
+      await upsertCrawlResultV1({
+        businessId: businessIdStr,
+        datasetId,
+        websiteUrl: website,
+        startedAt: startedAt || new Date(),
+        finishedAt,
+        pagesVisited,
+        crawlStatus,
+        emails: Array.from(allEmails.values()),
+        phones: Array.from(allPhones.values()),
+        contactPages: Array.from(contactPages),
+        social: allSocial,
+        errors: finalErrors,
+      });
+      console.log(`[crawl_results] Upserted v1 row (partial/failed) for business ${businessIdStr} dataset ${datasetId}`);
+    } catch (dbError: any) {
+      console.warn(`[crawl_results] Failed to upsert v1 row on error, falling back to local store: ${dbError.message}`);
+    }
+    
     return {
       success: false,
       business_id: businessId,
       website_url: website,
-      pages_crawled: visited.size,
+      pages_crawled: pagesVisited,
       emails_found: allEmails.size,
       phones_found: allPhones.size,
       social_links_found: Object.keys(allSocial).length,

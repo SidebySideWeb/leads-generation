@@ -5,30 +5,27 @@
  * 
  * Exports a dataset with pricing gate enforcement.
  * Returns enhanced response with rows_returned, rows_total, gated, upgrade_hint.
- * 
- * NOTE: This route should call the backend export worker.
- * For now, it returns a mock response structure that matches the expected format.
- * In production, this should call the actual backend API or worker.
  */
 
 import { NextResponse } from 'next/server'
 import { withGuard, type GuardedRequest } from '@/lib/api-guard'
+import { exportWorkerV1New } from '../../../../../src/workers/exportWorkerV1New.js'
 
 export const POST = withGuard(async (
   request: GuardedRequest,
-  { params }: { params: { datasetId: string } }
+  { params }: { params: Promise<{ datasetId: string }> }
 ) => {
   try {
     // User and permissions are already validated and attached by guard
     const user = request.user
     const permissions = request.permissions
+    const { datasetId } = await params
 
     // Parse request body
     const body = await request.json()
     const { format } = body
 
     if (!format || !['csv', 'xlsx'].includes(format)) {
-      // Use plan from permissions (already validated by guard)
       return NextResponse.json(
         { 
           data: null,
@@ -44,23 +41,45 @@ export const POST = withGuard(async (
       )
     }
 
-    // For this dashboard deployment, the heavy export work is handled by the backend worker
-    // (outside the Next.js app). To keep the frontend build isolated from backend internals,
-    // we do NOT import the worker directly here. Instead, we return a clear "service
-    // unavailable" response that the UI can handle gracefully.
-    return NextResponse.json(
-      {
-        data: null,
-        meta: {
-          plan_id: permissions.plan,
-          gated: false,
-          total_available: 0,
-          total_returned: 0,
-          gate_reason: 'Export worker is not available in this deployment. Please try again later.',
+    // Call backend export worker
+    const result = await exportWorkerV1New({
+      datasetId,
+      userId: user.id,
+      format: format as 'csv' | 'xlsx',
+    })
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          data: null,
+          meta: {
+            plan_id: permissions.plan,
+            gated: result.gated,
+            total_available: result.rows_total,
+            total_returned: result.rows_returned,
+            gate_reason: result.error || 'Export failed',
+            upgrade_hint: result.upgrade_hint,
+          },
         },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      data: {
+        exportId: result.exportId,
+        downloadUrl: result.downloadUrl,
+        filePath: result.filePath,
       },
-      { status: 503 }
-    )
+      meta: {
+        plan_id: permissions.plan,
+        gated: result.gated,
+        total_available: result.rows_total,
+        total_returned: result.rows_returned,
+        watermark: result.watermark,
+        upgrade_hint: result.upgrade_hint,
+      },
+    })
   } catch (error: any) {
     console.error('[export] Error:', error)
     return NextResponse.json(

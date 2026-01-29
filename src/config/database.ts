@@ -1,5 +1,5 @@
-import pg from 'pg';
-import dotenv from 'dotenv';
+import * as pg from 'pg';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -32,7 +32,11 @@ export const pool = new Pool({
   connectionString: getConnectionString(),
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  // Add connection timeout and retry options
+  connectionTimeoutMillis: 10000, // 10 second timeout
+  idleTimeoutMillis: 30000,
+  max: 20, // Maximum pool size
 });
 
 export async function testConnection(): Promise<boolean> {

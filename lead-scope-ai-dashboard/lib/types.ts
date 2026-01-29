@@ -60,6 +60,15 @@ export interface Business {
   industry: string;
   lastVerifiedAt: string | null;
   isActive: boolean;
+  // Optional crawl summary (from dataset results endpoint)
+  crawl?: {
+    status: 'not_crawled' | 'partial' | 'completed';
+    emailsCount: number;
+    phonesCount: number;
+    socialCount: number;
+    finishedAt: string | null;
+    pagesVisited: number;
+  };
 }
 
 /**

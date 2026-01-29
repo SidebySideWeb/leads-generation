@@ -240,6 +240,15 @@ class ApiClient {
   }
 
   /**
+   * Get dataset results (businesses with crawl results)
+   * @param datasetId - Dataset UUID
+   * @returns Promise with businesses with crawl results and metadata
+   */
+  async getDatasetResults(datasetId: string): Promise<{ data: Business[] | null; meta: ResponseMeta }> {
+    return this.request<Business[]>(`/datasets/${datasetId}/results`);
+  }
+
+  /**
    * Get businesses for a dataset
    * @param datasetId - Dataset UUID
    * @param params - Query parameters

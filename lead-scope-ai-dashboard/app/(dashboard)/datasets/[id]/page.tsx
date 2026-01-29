@@ -79,9 +79,9 @@ export default function DatasetDetailPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [datasetRes, businessesRes] = await Promise.all([
+        const [datasetRes, resultsRes] = await Promise.all([
           api.getDataset(datasetId),
-          api.getBusinesses(datasetId, { limit: 100 })
+          api.getDatasetResults(datasetId)
         ])
 
         if (datasetRes.data) {
@@ -89,10 +89,10 @@ export default function DatasetDetailPage() {
         }
         setDatasetMeta(datasetRes.meta)
 
-        if (businessesRes.data) {
-          setBusinesses(businessesRes.data)
+        if (resultsRes.data) {
+          setBusinesses(resultsRes.data)
         }
-        setBusinessesMeta(businessesRes.meta)
+        setBusinessesMeta(resultsRes.meta)
       } catch (error) {
         if (error instanceof NetworkError) {
           setNetworkError(error.message)
@@ -356,10 +356,10 @@ export default function DatasetDetailPage() {
                   <TableHead className="text-muted-foreground">Company</TableHead>
                   <TableHead className="text-muted-foreground">Address</TableHead>
                   <TableHead className="text-muted-foreground">Website</TableHead>
-                  <TableHead className="text-muted-foreground">Email</TableHead>
-                  <TableHead className="text-muted-foreground">Phone</TableHead>
+                  <TableHead className="text-muted-foreground">Emails</TableHead>
+                  <TableHead className="text-muted-foreground">Phones</TableHead>
                   <TableHead className="text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-muted-foreground">Last Verified</TableHead>
+                  <TableHead className="text-muted-foreground">Last Crawled</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -398,18 +398,49 @@ export default function DatasetDetailPage() {
                           <span className="text-muted-foreground/50">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{business.email || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{business.phone || "—"}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn(statusConfig[business.isActive ? "active" : "removed"].className)}
-                        >
-                          {statusConfig[business.isActive ? "active" : "removed"].label}
-                        </Badge>
+                      <TableCell className="text-muted-foreground">
+                        {business.crawl?.emailsCount ? (
+                          <span className="font-medium">{business.crawl.emailsCount}</span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(business.lastVerifiedAt)}
+                        {business.crawl?.phonesCount ? (
+                          <span className="font-medium">{business.crawl.phonesCount}</span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {business.crawl ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              business.crawl.status === 'completed' 
+                                ? "bg-success/10 text-success border-success/20"
+                                : business.crawl.status === 'partial'
+                                ? "bg-warning/10 text-warning border-warning/20"
+                                : "bg-muted text-muted-foreground border-border"
+                            )}
+                          >
+                            {business.crawl.status === 'completed' 
+                              ? "Completed"
+                              : business.crawl.status === 'partial'
+                              ? "Partial"
+                              : "Not Crawled"}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="bg-muted text-muted-foreground border-border"
+                          >
+                            Not Crawled
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {business.crawl?.finishedAt ? formatDate(business.crawl.finishedAt) : "Never"}
                       </TableCell>
                     </TableRow>
                   ))

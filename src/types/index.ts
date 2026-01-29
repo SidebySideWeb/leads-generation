@@ -122,3 +122,21 @@ export interface ExtractedContact {
   contactType: 'email' | 'phone' | 'mobile';
   isGeneric: boolean;
 }
+
+// Re-export canonical export types
+export type {
+  ExportRowV1,
+  ExportMetaV1,
+  ExportPayloadV1,
+  BusinessExportInput,
+} from './export.js';
+
+export {
+  mapBusinessAndCrawlResultToExportRow,
+  isValidExportRowV1,
+  assertExportRowV1,
+} from './export.js';
+
+// Re-export plan and response types
+export type { PlanId } from './plan.js';
+export type { ResponseMeta, ApiResponse, PaginatedResponse } from './response.js';

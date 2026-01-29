@@ -9,8 +9,9 @@
 
 import { getUserPlan } from './userPlans.js';
 import { pool } from '../config/database.js';
+import type { PlanId } from '../types/plan.js';
 
-export type Plan = 'demo' | 'starter' | 'pro';
+export type Plan = PlanId; // Alias for backward compatibility
 
 export interface UserPermissions {
   plan: Plan;
@@ -30,18 +31,21 @@ const PLAN_PERMISSIONS: Record<Plan, Omit<UserPermissions, 'plan'>> = {
     max_crawl_pages: 1, // Depth 1 only
     max_datasets: 1,
     can_refresh: false, // No refresh for demo
+    is_internal_user: false, // Not internal by default
   },
   starter: {
     max_export_rows: 1000,
     max_crawl_pages: 3, // Depth 3
     max_datasets: 5,
     can_refresh: true, // Monthly refresh allowed
+    is_internal_user: false, // Not internal by default
   },
   pro: {
     max_export_rows: Number.MAX_SAFE_INTEGER, // Unlimited
     max_crawl_pages: 10, // Depth 10
     max_datasets: Number.MAX_SAFE_INTEGER, // Unlimited
     can_refresh: true, // Monthly refresh allowed
+    is_internal_user: false, // Not internal by default
   },
 };
 

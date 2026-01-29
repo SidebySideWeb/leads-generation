@@ -4,7 +4,7 @@ import { geoGridDiscoveryService } from '../services/geoGrid.js';
 import { getCountryByCode } from '../db/countries.js';
 import { getOrCreateIndustry } from '../db/industries.js';
 import { getOrCreateCity, getCityByNormalizedName, updateCityCoordinates } from '../db/cities.js';
-import { getBusinessByGooglePlaceId, createBusiness } from '../db/businesses.js';
+import { getBusinessByGooglePlaceId, upsertBusiness } from '../db/businesses.js';
 import { getOrCreateWebsite } from '../db/websites.js';
 import { createCrawlJob } from '../db/crawlJobs.js';
 import { getDatasetById } from '../db/datasets.js';
@@ -224,20 +224,9 @@ async function processPlace(
   // Get or create city
   const city = await getOrCreateCity(cityName, countryId);
 
-  // Check if business already exists by google_place_id (within this dataset)
-  // This prevents unnecessary insert attempts
-  const existingByPlaceId = await getBusinessByGooglePlaceId(place.place_id, datasetId);
-  
-  if (existingByPlaceId) {
-    // Business already exists - skip silently (idempotent behavior)
-    result.businessesSkipped++;
-    return;
-  }
-
-  // Insert business using ON CONFLICT DO NOTHING
-  // This handles duplicates based on (dataset_id, normalized_name) unique constraint
-  // createBusiness() will return existing business if conflict occurs
-  const business = await createBusiness({
+  // Upsert business: Insert if new, Update if exists
+  // This ensures fresh data from Google Places API
+  const { business, wasUpdated } = await upsertBusiness({
     name: place.name,
     address: place.formatted_address || null,
     postal_code: postalCode,
@@ -248,32 +237,29 @@ async function processPlace(
     owner_user_id: ownerUserId
   });
 
-  // Check if this was a new insert or existing business
-  // We can determine this by checking if created_at is very recent
-  const isNewBusiness = business.created_at && 
-    new Date(business.created_at).getTime() > Date.now() - 5000; // Within last 5 seconds
-
-  if (isNewBusiness) {
+  if (wasUpdated) {
+    // Business was updated (existing record refreshed)
+    result.businessesUpdated++;
+  } else {
     // Business was inserted (new record)
     result.businessesCreated++;
-    
-    // Create website if exists
-    if (place.website) {
-      try {
-        const website = await getOrCreateWebsite(business.id, place.website);
-        if (!website.business_id || website.business_id !== business.id) {
-          result.websitesCreated++;
-        }
-        
-        // Create crawl job for the website (discovery type)
-        await createCrawlJob(website.id, 'discovery');
-      } catch (error) {
-        console.error(`Error creating website for business ${business.id}:`, error);
+  }
+  
+  // Create/update website if exists
+  if (place.website) {
+    try {
+      const website = await getOrCreateWebsite(business.id, place.website);
+      if (!website.business_id || website.business_id !== business.id) {
+        result.websitesCreated++;
       }
+      
+      // Create crawl job for the website (discovery type)
+      // Only create if this is a new business or if we want to re-crawl updated businesses
+      if (!wasUpdated) {
+        await createCrawlJob(website.id, 'discovery');
+      }
+    } catch (error) {
+      console.error(`Error creating website for business ${business.id}:`, error);
     }
-  } else {
-    // Business already existed (conflict on normalized_name)
-    // This is expected and silent - idempotent behavior
-    result.businessesSkipped++;
   }
 }

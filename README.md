@@ -29,6 +29,16 @@ This backend system discovers Greek businesses, crawls their websites, and extra
 - dotenv (environment variables)
 - zod (validation)
 
+## Security: Row Level Security (RLS)
+
+This project uses Supabase Row Level Security (RLS) to enforce multi-tenancy. See `supabase/README.md` for details.
+
+**API Keys:**
+- **Anon Key**: Used by frontend (Next.js dashboard) - enforces RLS policies
+- **Service Role Key**: Used by backend (API routes, workers, webhooks) - bypasses RLS
+
+See `supabase/README.md` for complete documentation on RLS policies and API key usage.
+
 ## Setup
 
 1. **Install dependencies**:

@@ -49,7 +49,7 @@ export default async function DashboardPage() {
 
   try {
     const [statsResponse, contactsResponse] = await Promise.all([
-      api.getDashboardStats(),
+      api.getDashboardMetrics(),
       api.getRecentContacts(5),
     ])
 

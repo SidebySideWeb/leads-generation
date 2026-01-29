@@ -259,12 +259,116 @@ class ApiClient {
     params?: { page?: number; limit?: number; search?: string }
   ): Promise<{ data: Business[] | null; meta: ResponseMeta }> {
     const queryParams = new URLSearchParams();
+    queryParams.set('datasetId', datasetId);
     if (params?.page) queryParams.set('page', String(params.page));
     if (params?.limit) queryParams.set('limit', String(params.limit));
     if (params?.search) queryParams.set('search', params.search);
 
     const query = queryParams.toString();
-    return this.request<Business[]>(`/datasets/${datasetId}/businesses${query ? `?${query}` : ''}`);
+    return this.request<Business[]>(`/businesses?${query}`);
+  }
+
+  /**
+   * Get contacts for a business (plan-gated)
+   * @param businessId - Business ID
+   * @returns Promise with contacts and metadata
+   */
+  async getContacts(businessId: string): Promise<{ 
+    data: { contacts: Array<{ type: 'email' | 'phone'; value: string; source_url: string }> } | null; 
+    meta: ResponseMeta 
+  }> {
+    return this.request<{ contacts: Array<{ type: 'email' | 'phone'; value: string; source_url: string }> }>(
+      `/contacts?businessId=${businessId}`
+    );
+  }
+
+  /**
+   * Preview export (compute rows, apply limits, return watermark)
+   * @param datasetId - Dataset UUID
+   * @returns Promise with export preview and metadata
+   */
+  async previewExport(datasetId: string): Promise<{ 
+    data: { rows_total: number; rows_to_export: number; watermark_text: string } | null; 
+    meta: ResponseMeta 
+  }> {
+    return this.request<{ rows_total: number; rows_to_export: number; watermark_text: string }>(
+      '/exports/preview',
+      {
+        method: 'POST',
+        body: JSON.stringify({ datasetId }),
+      }
+    );
+  }
+
+  /**
+   * Run export (generate and download CSV)
+   * @param datasetId - Dataset UUID
+   * @param format - Export format ('csv' | 'xlsx')
+   * @returns Promise with export result (file download)
+   */
+  async runExport(
+    datasetId: string,
+    format: 'csv' | 'xlsx' = 'csv'
+  ): Promise<Response> {
+    const url = `${this.baseUrl}/exports/run`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ datasetId, format }),
+      credentials: 'include', // Include cookies for auth
+    });
+    return response;
+  }
+
+  /**
+   * Trigger crawl for a dataset
+   * @param datasetId - Dataset UUID
+   * @param options - Crawl options (maxDepth, pagesLimit)
+   * @returns Promise with crawl job info and metadata
+   */
+  async triggerCrawl(
+    datasetId: string,
+    options?: { maxDepth?: number; pagesLimit?: number }
+  ): Promise<{ 
+    data: { job_ids: string[]; jobs_created: number; max_depth: number; pages_limit: number; message: string } | null; 
+    meta: ResponseMeta 
+  }> {
+    return this.request<{ job_ids: string[]; jobs_created: number; max_depth: number; pages_limit: number; message: string }>(
+      '/crawl',
+      {
+        method: 'POST',
+        body: JSON.stringify({ 
+          datasetId, 
+          maxDepth: options?.maxDepth || 2,
+          pagesLimit: options?.pagesLimit,
+        }),
+      }
+    );
+  }
+
+  /**
+   * Get dashboard metrics
+   * @returns Promise with dashboard statistics and metadata
+   */
+  async getDashboardMetrics(): Promise<{ 
+    data: { 
+      businesses_total: number; 
+      businesses_crawled: number; 
+      contacts_found: number; 
+      exports_this_month: number;
+      last_refresh: string | null;
+    } | null; 
+    meta: ResponseMeta 
+  }> {
+    return this.request<{ 
+      businesses_total: number; 
+      businesses_crawled: number; 
+      contacts_found: number; 
+      exports_this_month: number;
+      last_refresh: string | null;
+    }>('/dashboard/metrics');
   }
 
   /**

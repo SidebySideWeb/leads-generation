@@ -1,10 +1,10 @@
 /**
- * Dataset Results API Route
+ * Businesses API Route
  * 
- * GET /api/datasets/:datasetId/results
+ * GET /api/businesses?datasetId=uuid
  * 
- * Returns businesses with their crawl_results v1 summary for a dataset.
- * Enforces ownership: only returns results if user owns the dataset or is internal.
+ * Returns businesses for a dataset with crawl status summary.
+ * Enforces dataset ownership.
  */
 
 import { NextResponse } from 'next/server'
@@ -17,21 +17,35 @@ const pool = new Pool({
 })
 
 /**
- * Convert integer business ID to UUID format (same logic as backend)
+ * Convert integer business ID to UUID format
  */
 function integerToUuid(integerId: number): string {
   const hex = integerId.toString(16).padStart(32, '0');
   return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}`;
 }
 
-export const GET = withGuard(async (
-  request: GuardedRequest,
-  { params }: { params: Promise<{ datasetId: string }> }
-) => {
+export const GET = withGuard(async (request: GuardedRequest) => {
   try {
     const user = request.user
     const permissions = request.permissions
-    const { datasetId } = await params
+    const { searchParams } = new URL(request.url)
+    const datasetId = searchParams.get('datasetId')
+
+    if (!datasetId) {
+      return NextResponse.json(
+        {
+          data: null,
+          meta: {
+            plan_id: permissions.plan,
+            gated: false,
+            total_available: 0,
+            total_returned: 0,
+            gate_reason: 'datasetId query parameter is required',
+          },
+        },
+        { status: 400 }
+      )
+    }
 
     // 1. Verify dataset ownership
     const datasetResult = await pool.query(
@@ -72,12 +86,12 @@ export const GET = withGuard(async (
       )
     }
 
-    // 2. Fetch businesses for the dataset
+    // 2. Fetch businesses with website URLs
     const businessesResult = await pool.query<{
-      id: number;
-      name: string;
-      address: string | null;
-      website_url: string | null;
+      id: number
+      name: string
+      address: string | null
+      website_url: string | null
     }>(
       `
       SELECT 
@@ -94,13 +108,12 @@ export const GET = withGuard(async (
 
     // 3. Fetch crawl_results for this dataset
     const crawlResultsResult = await pool.query<{
-      business_id: string;
-      crawl_status: string;
-      emails: string; // JSONB as text
-      phones: string; // JSONB as text
-      social: string; // JSONB as text
-      finished_at: string | null;
-      pages_visited: number;
+      business_id: string
+      crawl_status: string
+      emails: string // JSONB as text
+      phones: string // JSONB as text
+      finished_at: string | null
+      pages_visited: number
     }>(
       `
       SELECT
@@ -108,7 +121,6 @@ export const GET = withGuard(async (
         crawl_status,
         emails::text AS emails,
         phones::text AS phones,
-        social::text AS social,
         finished_at::text AS finished_at,
         pages_visited
       FROM crawl_results
@@ -118,27 +130,26 @@ export const GET = withGuard(async (
     )
 
     // 4. Create map of business_id (UUID) -> crawl_result
-    const crawlResultMap = new Map<string, typeof crawlResultsResult.rows[0]>();
+    const crawlResultMap = new Map<string, typeof crawlResultsResult.rows[0]>()
     for (const cr of crawlResultsResult.rows) {
-      crawlResultMap.set(cr.business_id, cr);
+      crawlResultMap.set(cr.business_id, cr)
     }
 
     // 5. Match businesses to crawl_results
-    const businessIdToCrawlResultMap = new Map<number, typeof crawlResultsResult.rows[0]>();
+    const businessIdToCrawlResultMap = new Map<number, typeof crawlResultsResult.rows[0]>()
     
     for (const business of businessesResult.rows) {
-      // Try forward lookup: convert business.id to UUID
-      const businessIdUuid = integerToUuid(business.id);
-      let crawlResult = crawlResultMap.get(businessIdUuid);
+      const businessIdUuid = integerToUuid(business.id)
+      let crawlResult = crawlResultMap.get(businessIdUuid)
       
-      // Try reverse lookup: extract integer from UUID
+      // Try reverse lookup
       if (!crawlResult) {
         for (const [uuid, cr] of crawlResultMap.entries()) {
-          const uuidHex = uuid.replace(/-/g, '').substring(0, 16);
-          const possibleIntId = parseInt(uuidHex, 16);
+          const uuidHex = uuid.replace(/-/g, '').substring(0, 16)
+          const possibleIntId = parseInt(uuidHex, 16)
           if (possibleIntId === business.id) {
-            crawlResult = cr;
-            break;
+            crawlResult = cr
+            break
           }
         }
       }
@@ -146,65 +157,48 @@ export const GET = withGuard(async (
       // Try website matching
       if (!crawlResult && business.website_url) {
         for (const [uuid, cr] of crawlResultMap.entries()) {
-          // We'd need to query crawl_results for website_url to match
-          // For now, skip website matching
+          // We'd need website_url in crawl_results to match - skip for now
         }
       }
       
       if (crawlResult) {
-        businessIdToCrawlResultMap.set(business.id, crawlResult);
+        businessIdToCrawlResultMap.set(business.id, crawlResult)
       }
     }
 
-    // 6. Transform to frontend format
+    // 6. Build response
     const businesses = businessesResult.rows.map((business) => {
-      const crawlResult = businessIdToCrawlResultMap.get(business.id);
+      const crawlResult = businessIdToCrawlResultMap.get(business.id)
       
-      // Parse JSONB strings
-      let emails: Array<{ value: string; source_url: string }> = [];
-      let phones: Array<{ value: string; source_url: string }> = [];
-      let social: { facebook?: string; instagram?: string; linkedin?: string; twitter?: string; youtube?: string } = {};
+      // Parse JSONB arrays
+      let emailsCount = 0
+      let phonesCount = 0
       
       if (crawlResult) {
         try {
           if (crawlResult.emails) {
-            const parsed = JSON.parse(crawlResult.emails);
-            emails = Array.isArray(parsed) ? parsed : [];
+            const parsed = JSON.parse(crawlResult.emails)
+            emailsCount = Array.isArray(parsed) ? parsed.length : 0
           }
           if (crawlResult.phones) {
-            const parsed = JSON.parse(crawlResult.phones);
-            phones = Array.isArray(parsed) ? parsed : [];
-          }
-          if (crawlResult.social) {
-            const parsed = JSON.parse(crawlResult.social);
-            social = typeof parsed === 'object' && parsed !== null ? parsed : {};
+            const parsed = JSON.parse(crawlResult.phones)
+            phonesCount = Array.isArray(parsed) ? parsed.length : 0
           }
         } catch (e) {
-          console.warn(`[dataset-results] Failed to parse JSONB for business ${business.id}`);
+          // Ignore parse errors
         }
       }
 
       return {
         id: String(business.id),
         name: business.name,
-        address: business.address,
-        website: crawlResult ? null : business.website_url, // Use website from crawl_result if available
-        email: emails.length > 0 ? emails[0].value : null,
-        phone: phones.length > 0 ? phones[0].value : null,
-        city: '',
-        industry: '',
-        lastVerifiedAt: crawlResult?.finished_at || null,
-        isActive: true,
-        crawl: {
-          status: (crawlResult?.crawl_status || 'not_crawled') as 'not_crawled' | 'partial' | 'completed',
-          emailsCount: emails.length,
-          phonesCount: phones.length,
-          socialCount: Object.keys(social).filter(key => social[key as keyof typeof social]).length,
-          finishedAt: crawlResult?.finished_at || null,
-          pagesVisited: crawlResult?.pages_visited || 0,
-        },
-      };
-    });
+        website_url: crawlResult ? null : business.website_url, // Use from crawl_result if available
+        crawl_status: (crawlResult?.crawl_status || 'not_crawled') as 'not_crawled' | 'partial' | 'completed',
+        emails_count: emailsCount,
+        phones_count: phonesCount,
+        has_crawl_results: !!crawlResult,
+      }
+    })
 
     return NextResponse.json({
       data: businesses,
@@ -216,8 +210,7 @@ export const GET = withGuard(async (
       },
     })
   } catch (error: any) {
-    console.error('[dataset-results] Error:', error)
-    
+    console.error('[businesses] Error:', error)
     return NextResponse.json(
       {
         data: null,
@@ -226,7 +219,7 @@ export const GET = withGuard(async (
           gated: false,
           total_available: 0,
           total_returned: 0,
-          gate_reason: error.message || 'Failed to load dataset results',
+          gate_reason: error.message || 'Failed to load businesses',
         },
       },
       { status: 500 }

@@ -108,6 +108,7 @@ export default function RegisterPage() {
           <Input
             id="email"
             type="email"
+            autoComplete="email"
             placeholder="name@company.com"
             className="h-11"
             value={email}
@@ -123,6 +124,7 @@ export default function RegisterPage() {
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
               placeholder="Create a password"
               className="h-11 pr-10"
               value={password}
@@ -157,6 +159,7 @@ export default function RegisterPage() {
             <Input
               id="confirmPassword"
               type={showConfirmPassword ? "text" : "password"}
+              autoComplete="new-password"
               placeholder="Confirm your password"
               className="h-11 pr-10"
               value={confirmPassword}

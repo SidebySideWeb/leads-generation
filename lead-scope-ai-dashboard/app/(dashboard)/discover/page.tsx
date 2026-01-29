@@ -119,7 +119,7 @@ export default function DiscoverPage() {
         title: "Discovery started",
         description: `Found ${response.data.length} businesses`,
       })
-      router.push(`/(dashboard)/datasets`)
+      router.push(`/datasets`)
     } catch (error) {
       if (error instanceof NetworkError) {
         toast({

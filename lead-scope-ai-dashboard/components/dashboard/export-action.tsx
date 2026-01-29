@@ -74,7 +74,7 @@ export function ExportAction({ datasetId, format, onComplete }: ExportActionProp
       }
 
       // Navigate to exports page to see the result
-      router.push('/(dashboard)/exports')
+      router.push('/exports')
 
       if (onComplete) {
         onComplete()

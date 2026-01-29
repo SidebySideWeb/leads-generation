@@ -17,11 +17,9 @@ import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry,
  * Local dev: http://localhost:3000 (fallback)
  */
 const getBaseUrl = (): string => {
-  // NEXT_PUBLIC_API_BASE_URL is the production backend URL
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
   }
-  // Fallback for local development
   return 'http://localhost:3000';
 };
 
@@ -438,21 +436,19 @@ class ApiClient {
 
   /**
    * Login with email and password
-   * Thin client helper; actual auth logic lives on the backend.
    */
   async login(
     email: string,
     password: string
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
-      // Use Next.js API route (proxies to backend, avoids CORS)
-      const url = '/api/auth/login';
+      const url = `${this.baseUrl}/api/auth/login`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
 
@@ -469,9 +465,8 @@ class ApiClient {
         };
       }
 
-      const token = json.token ?? json.data?.token;
       return {
-        data: token ? { token } : null,
+        data: null,
       };
     } catch {
       return {
@@ -483,21 +478,19 @@ class ApiClient {
 
   /**
    * Register a new user
-   * Uses Next.js API route (proxies to backend, avoids CORS)
    */
   async register(
     email: string,
     password: string
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
-      // Use Next.js API route (proxies to backend, avoids CORS)
-      const url = '/api/auth/register';
+      const url = `${this.baseUrl}/api/auth/register`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
 
@@ -514,9 +507,8 @@ class ApiClient {
         };
       }
 
-      const token = json.token ?? json.data?.token;
       return {
-        data: token ? { token } : null,
+        data: null,
       };
     } catch {
       return {
@@ -527,10 +519,10 @@ class ApiClient {
   }
 
   /**
-   * Get current authenticated user (from JWT cookie via API route)
+   * Get current authenticated user (from JWT cookie)
    */
   async getCurrentUser(): Promise<{ data: User | null; meta: ResponseMeta }> {
-    return this.request<User>('/auth/user');
+    return this.request<User>('/api/auth/me');
   }
 }
 

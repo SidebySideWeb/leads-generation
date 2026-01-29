@@ -27,12 +27,19 @@ export interface MeResponse {
 }
 
 /**
- * Fetch user permissions from /api/me
+ * Fetch user permissions from backend
  */
 export async function fetchPermissions(): Promise<MeResponse | null> {
   try {
-    const response = await fetch('/api/me', {
+    const apiUrl = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://localhost:3000'
+    
+    const response = await fetch(`${apiUrl}/api/auth/me`, {
       method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       credentials: 'include',
     })
 

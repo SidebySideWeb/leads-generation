@@ -34,12 +34,6 @@ export default function LoginPage() {
         return
       }
 
-      // Store token if provided
-      if (response.data?.token) {
-        // In production, use secure storage (httpOnly cookies via API route)
-        localStorage.setItem("token", response.data.token)
-      }
-
       router.push("/(dashboard)")
     } catch (error) {
       toast({

@@ -12,9 +12,8 @@ export const config = {
     url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   },
   api: {
-    // NEXT_PUBLIC_API_BASE_URL should be set to https://api.leadscope.gr in production
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
-    timeout: 30000, // 30 seconds
+    baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+    timeout: 30000,
   },
   features: {
     enableAnalytics: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === 'true',

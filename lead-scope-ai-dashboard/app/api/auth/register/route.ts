@@ -1,0 +1,77 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000'
+
+/**
+ * Proxy registration request to backend
+ * POST /api/auth/register
+ * Body: { email: string, password: string }
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { email, password } = body
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Email and password are required' },
+        { status: 400 }
+      )
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters' },
+        { status: 400 }
+      )
+    }
+
+    // Forward request to backend
+    const backendResponse = await fetch(`${BACKEND_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
+
+    const backendData = await backendResponse.json().catch(() => ({}))
+
+    if (!backendResponse.ok) {
+      return NextResponse.json(
+        {
+          error: backendData.error || backendData.message || 'Registration failed',
+        },
+        { status: backendResponse.status }
+      )
+    }
+
+    // If backend returns a token, set it in http-only cookie
+    const token = backendData.token || backendData.data?.token
+    if (token) {
+      const response = NextResponse.json({
+        token,
+        data: { token },
+      })
+
+      // Set http-only cookie
+      response.cookies.set('auth-token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+        path: '/',
+      })
+
+      return response
+    }
+
+    return NextResponse.json(backendData)
+  } catch (error: any) {
+    console.error('[register] Error:', error)
+    return NextResponse.json(
+      { error: 'Network error. Please try again.' },
+      { status: 500 }
+    )
+  }
+}

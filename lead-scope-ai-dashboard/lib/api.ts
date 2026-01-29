@@ -445,12 +445,14 @@ class ApiClient {
     password: string
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
-      const url = `${this.baseUrl.replace(/\/api$/, '')}/api/auth/login`;
+      // Use Next.js API route (proxies to backend, avoids CORS)
+      const url = '/api/auth/login';
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -481,19 +483,21 @@ class ApiClient {
 
   /**
    * Register a new user
-   * Mirrors the login helper shape.
+   * Uses Next.js API route (proxies to backend, avoids CORS)
    */
   async register(
     email: string,
     password: string
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
-      const url = `${this.baseUrl.replace(/\/api$/, '')}/api/auth/register`;
+      // Use Next.js API route (proxies to backend, avoids CORS)
+      const url = '/api/auth/register';
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies
         body: JSON.stringify({ email, password }),
       });
 

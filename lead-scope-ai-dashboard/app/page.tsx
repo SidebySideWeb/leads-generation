@@ -1,8 +1,15 @@
+import { redirect } from "next/navigation"
+import { getCurrentUser } from "@/lib/auth-server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Compass, CheckCircle, Globe, Building2, Users, ArrowRight, Sparkles, Shield, Clock } from "lucide-react"
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const user = await getCurrentUser()
+  
+  if (user) {
+    redirect("/datasets")
+  }
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}

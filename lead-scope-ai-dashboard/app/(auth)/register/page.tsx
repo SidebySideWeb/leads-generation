@@ -66,7 +66,7 @@ export default function RegisterPage() {
         return
       }
 
-      router.push("/")
+      router.push("/datasets")
     } catch (error) {
       toast({
         title: "Error",

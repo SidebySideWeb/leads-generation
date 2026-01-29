@@ -34,7 +34,7 @@ export default function LoginPage() {
         return
       }
 
-      router.push("/")
+      router.push("/datasets")
     } catch (error) {
       toast({
         title: "Error",

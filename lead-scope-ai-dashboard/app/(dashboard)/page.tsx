@@ -54,7 +54,13 @@ export default async function DashboardPage() {
     ])
 
     if (statsResponse.data) {
-      stats = statsResponse.data
+      // Map API response (snake_case) to expected format (camelCase)
+      stats = {
+        totalBusinesses: statsResponse.data.businesses_total,
+        activeContacts: statsResponse.data.contacts_found,
+        citiesScanned: statsResponse.data.cities_scanned || 0,
+        lastRefresh: statsResponse.data.last_refresh,
+      }
     }
     statsMeta = statsResponse.meta
 

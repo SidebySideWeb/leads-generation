@@ -263,7 +263,7 @@ export const POST = withGuard(async (request: GuardedRequest) => {
     // 6. Apply plan limits
     const planLimit = PLAN_LIMITS[permissions.plan].export_max_rows
     const isGated = rowsTotal > planLimit && !permissions.is_internal_user
-    const rowsToExport = permissions.is_internal_user ? rowsTotal : allRows.slice(0, planLimit)
+    const rowsToExport = permissions.is_internal_user ? allRows : allRows.slice(0, planLimit)
 
     // 7. Determine watermark
     let watermarkText = ''

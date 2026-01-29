@@ -11,25 +11,17 @@ import {
 import { Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { GateBanner } from "@/components/dashboard/gate-banner"
 import type { ResponseMeta } from "@/lib/types"
 import { usePermissions } from "@/contexts/PermissionsContext"
 import { canPerformAction } from "@/lib/permissions"
 
 interface ExportButtonProps {
   datasetId: string
-  onExportComplete?: (exportResult: { id: string; download_url: string | null; total_rows: number; meta: ResponseMeta }) => void
+  onExportComplete?: () => void
 }
 
 export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps) {
   const [loading, setLoading] = useState(false)
-  const [exportResult, setExportResult] = useState<{
-    id: string
-    download_url: string | null
-    total_rows: number
-    meta: ResponseMeta
-  } | null>(null)
   const { toast } = useToast()
   const { permissions } = usePermissions()
   
@@ -39,63 +31,44 @@ export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps)
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
     setLoading(true)
-    setExportResult(null)
 
     try {
-      const response = await api.exportDataset(datasetId, format)
-
-      if (!response.data) {
+      // Use runExport for direct file download from backend
+      const response = await api.runExport(datasetId, format)
+      
+      // Check if response is OK
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
         toast({
           title: "Export failed",
-          description: response.meta.gate_reason || "Failed to create export",
+          description: errorData.message || errorData.meta?.gate_reason || `HTTP ${response.status}: ${response.statusText}`,
           variant: "destructive",
         })
-        setExportResult({
-          id: '',
-          download_url: null,
-          total_rows: 0,
-          meta: response.meta,
-        })
+        setLoading(false)
         return
       }
-
-      setExportResult({
-        id: response.data.id,
-        download_url: response.data.download_url,
-        total_rows: response.data.total_rows,
-        meta: {
-          ...response.meta,
-          // Ensure meta has rows info from data if available
-          total_returned: response.data.rows_returned ?? response.meta.total_returned,
-          total_available: response.data.rows_total ?? response.meta.total_available,
-          gated: response.data.rows_returned !== undefined && response.data.rows_total !== undefined
-            ? response.data.rows_returned < response.data.rows_total
-            : response.meta.gated,
-          upgrade_hint: response.meta.upgrade_hint,
-        },
-      })
-
-      // Use rows_returned and rows_total from data if available, fallback to meta
-      const rowsReturned = response.data.rows_returned ?? response.meta.total_returned;
-      const rowsTotal = response.data.rows_total ?? response.meta.total_available;
       
-      const message = response.meta.gated
-        ? `Showing ${rowsReturned.toLocaleString()} of ${rowsTotal.toLocaleString()} leads (limited). ${response.data.total_rows.toLocaleString()} rows exported.`
-        : `Showing ${rowsReturned.toLocaleString()} of ${rowsTotal.toLocaleString()} leads. ${response.data.total_rows.toLocaleString()} rows exported.`
-
+      // Handle file download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `export-${datasetId}-${Date.now()}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
       toast({
-        title: "Export created",
-        description: message,
+        title: "Export downloaded",
+        description: `Your ${format.toUpperCase()} file has been downloaded`,
       })
-
+      
       if (onExportComplete) {
-        onExportComplete({
-          id: response.data.id,
-          download_url: response.data.download_url,
-          total_rows: response.data.total_rows,
-          meta: response.meta,
-        })
+        onExportComplete()
       }
+      
+      setLoading(false)
     } catch (error) {
       if (error instanceof NetworkError) {
         toast({
@@ -176,58 +149,6 @@ export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps)
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {exportResult && (
-        <div className="space-y-2">
-          {/* Always show download button if URL is available, even when gated */}
-          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                Showing {exportResult.meta.total_returned.toLocaleString()} of {exportResult.meta.total_available.toLocaleString()} leads
-                {exportResult.meta.gated && (
-                  <span className="ml-2 text-xs text-warning font-medium">(Limited)</span>
-                )}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {exportResult.total_rows.toLocaleString()} rows exported
-              </p>
-            </div>
-            {exportResult.download_url && (
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className="ml-4"
-              >
-                <a href={exportResult.download_url} download target="_blank" rel="noopener noreferrer">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </a>
-              </Button>
-            )}
-          </div>
-
-          {/* Show warning banner and upgrade CTA when gated - never blocks download */}
-          {exportResult.meta.gated && (
-            <>
-              <Alert className="bg-warning/10 border-warning/30">
-                <AlertTitle className="text-foreground font-semibold flex items-center gap-2">
-                  <span>⚠️ Limited Export</span>
-                </AlertTitle>
-                <AlertDescription className="text-muted-foreground space-y-2 mt-2">
-                  <p>
-                    {exportResult.meta.gate_reason || 
-                     `This export contains ${exportResult.meta.total_returned.toLocaleString()} of ${exportResult.meta.total_available.toLocaleString()} available rows.`}
-                  </p>
-                  {exportResult.meta.upgrade_hint && (
-                    <p className="font-medium text-foreground">{exportResult.meta.upgrade_hint}</p>
-                  )}
-                </AlertDescription>
-              </Alert>
-              <GateBanner meta={exportResult.meta} />
-            </>
-          )}
-        </div>
-      )}
     </div>
   )
 }

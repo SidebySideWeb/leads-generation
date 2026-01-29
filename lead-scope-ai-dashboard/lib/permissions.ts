@@ -14,6 +14,7 @@ export interface UserPermissions {
   max_crawl_pages: number
   max_datasets: number
   can_refresh: boolean
+  is_internal_user?: boolean
 }
 
 export interface MeResponse {

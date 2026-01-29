@@ -82,7 +82,19 @@ export const GET = withGuard(async (request: GuardedRequest) => {
     )
     const exportsThisMonth = parseInt(exportsThisMonthResult.rows[0]?.count || '0', 10)
 
-    // 5. Last refresh (most recent dataset refresh)
+    // 5. Cities scanned (distinct cities from user's datasets)
+    const citiesScannedResult = await pool.query<{ count: string }>(
+      `
+      SELECT COUNT(DISTINCT d.city_id) AS count
+      FROM datasets d
+      WHERE d.user_id = $1
+        AND d.city_id IS NOT NULL
+      `,
+      [user.id]
+    )
+    const citiesScanned = parseInt(citiesScannedResult.rows[0]?.count || '0', 10)
+
+    // 6. Last refresh (most recent dataset refresh)
     const lastRefreshResult = await pool.query<{ last_refreshed_at: string | null }>(
       `
       SELECT MAX(last_refreshed_at)::text AS last_refreshed_at
@@ -99,6 +111,7 @@ export const GET = withGuard(async (request: GuardedRequest) => {
         businesses_crawled: businessesCrawled,
         contacts_found: contactsFound,
         exports_this_month: exportsThisMonth,
+        cities_scanned: citiesScanned,
         last_refresh: lastRefresh,
       },
       meta: {

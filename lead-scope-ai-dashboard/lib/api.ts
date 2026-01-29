@@ -12,16 +12,17 @@ import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry,
 /**
  * API client configuration
  * Server-safe: uses process.env (available in both server and client in Next.js)
+ * 
+ * Production: https://api.leadscope.gr
+ * Local dev: http://localhost:3000 (fallback)
  */
 const getBaseUrl = (): string => {
-  // NEXT_PUBLIC_ env vars are available in both server and client
-  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  // NEXT_PUBLIC_API_BASE_URL is the production backend URL
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
   }
-  // Default API URL (not related to storage mode - just URL fallback)
-  return typeof window === 'undefined' 
-    ? 'http://localhost:3000/api' 
-    : '/api';
+  // Fallback for local development
+  return 'http://localhost:3000';
 };
 
 /**
@@ -71,6 +72,7 @@ class ApiClient {
       const response = await fetch(url, {
         ...options,
         signal: controller?.signal,
+        credentials: 'include', // Always send cookies for auth
         headers: {
           'Content-Type': 'application/json',
           ...options.headers,
@@ -79,6 +81,25 @@ class ApiClient {
 
       if (timeoutId) {
         clearTimeout(timeoutId);
+      }
+
+      // Handle auth errors - redirect to login
+      if (response.status === 401 || response.status === 403) {
+        // Only redirect on client side
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+        }
+        // Return error response
+        return {
+          data: (null as unknown) as T,
+          meta: {
+            plan_id: 'demo',
+            gated: false,
+            total_available: 0,
+            total_returned: 0,
+            gate_reason: 'Authentication required',
+          },
+        };
       }
 
       // HTTP errors (4xx, 5xx) are not network errors - return them with meta
@@ -223,14 +244,6 @@ class ApiClient {
   }
 
   /**
-   * Get dashboard statistics
-   * @returns Promise with dashboard stats and metadata
-   */
-  async getDashboardStats(): Promise<{ data: { totalBusinesses: number; activeContacts: number; citiesScanned: number; lastRefresh: string | null } | null; meta: ResponseMeta }> {
-    return this.request<{ totalBusinesses: number; activeContacts: number; citiesScanned: number; lastRefresh: string | null }>('/dashboard/stats');
-  }
-
-  /**
    * Get recent contacts
    * @param limit - Number of contacts to return
    * @returns Promise with recent contacts and metadata
@@ -301,7 +314,7 @@ class ApiClient {
   }
 
   /**
-   * Run export (generate and download CSV)
+   * Run export (generate and download CSV/XLSX)
    * @param datasetId - Dataset UUID
    * @param format - Export format ('csv' | 'xlsx')
    * @returns Promise with export result (file download)
@@ -317,8 +330,16 @@ class ApiClient {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ datasetId, format }),
-      credentials: 'include', // Include cookies for auth
+      credentials: 'include', // Always send cookies for auth
     });
+    
+    // Handle auth errors - redirect to login
+    if (response.status === 401 || response.status === 403) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+      }
+    }
+    
     return response;
   }
 
@@ -358,6 +379,7 @@ class ApiClient {
       businesses_crawled: number; 
       contacts_found: number; 
       exports_this_month: number;
+      cities_scanned: number;
       last_refresh: string | null;
     } | null; 
     meta: ResponseMeta 
@@ -367,6 +389,7 @@ class ApiClient {
       businesses_crawled: number; 
       contacts_found: number; 
       exports_this_month: number;
+      cities_scanned: number;
       last_refresh: string | null;
     }>('/dashboard/metrics');
   }

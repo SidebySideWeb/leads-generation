@@ -25,23 +25,34 @@ export default function LoginPage() {
     try {
       const response = await api.login(email, password)
       
+      console.log('Login response:', response)
+      
       if (response.error) {
+        console.error('Login error:', response.error)
         toast({
           title: "Login failed",
           description: response.error.message,
           variant: "destructive",
         })
+        setLoading(false)
         return
       }
 
-      router.push("/datasets")
+      toast({
+        title: "Login successful",
+        description: "Redirecting to dashboard...",
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      window.location.href = "/datasets"
     } catch (error) {
+      console.error('Login error:', error)
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setLoading(false)
     }
   }

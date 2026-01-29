@@ -63,17 +63,25 @@ export default function RegisterPage() {
           description: response.error.message,
           variant: "destructive",
         })
+        setLoading(false)
         return
       }
 
-      router.push("/datasets")
+      toast({
+        title: "Registration successful",
+        description: "Redirecting to dashboard...",
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      window.location.href = "/datasets"
     } catch (error) {
+      console.error('Registration error:', error)
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setLoading(false)
     }
   }

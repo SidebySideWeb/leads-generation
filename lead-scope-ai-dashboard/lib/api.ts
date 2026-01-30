@@ -11,16 +11,26 @@ import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry,
 
 /**
  * API client configuration
- * Server-safe: uses process.env (available in both server and client in Next.js)
+ * BACKEND IS THE SINGLE SOURCE OF TRUTH.
+ * All API calls go directly to backend: https://api.leadscope.gr
  * 
  * Production: https://api.leadscope.gr
- * Local dev: http://localhost:3000 (fallback)
+ * Local dev: http://localhost:3001 (backend port)
  */
 const getBaseUrl = (): string => {
+  // Always use backend URL
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  return 'http://localhost:3000';
+  // Default to production backend
+  if (typeof window !== 'undefined') {
+    // Client-side: use production backend
+    return 'https://api.leadscope.gr';
+  }
+  // Server-side: use local backend in dev, production in prod
+  return process.env.NODE_ENV === 'production' 
+    ? 'https://api.leadscope.gr'
+    : 'http://localhost:3001';
 };
 
 /**
@@ -222,6 +232,7 @@ class ApiClient {
    * @returns Promise with dataset and metadata
    */
   async getDataset(datasetId: string): Promise<{ data: Dataset | null; meta: ResponseMeta }> {
+    // Call backend directly (backend route is /datasets/:id)
     return this.request<Dataset>(`/datasets/${datasetId}`);
   }
 
@@ -231,6 +242,7 @@ class ApiClient {
    * @returns Promise with crawl job and metadata
    */
   async runCrawl(datasetId: string): Promise<{ data: CrawlJob | null; meta: ResponseMeta }> {
+    // Call backend directly (backend route is /datasets/:id/crawl)
     return this.request<CrawlJob>(`/datasets/${datasetId}/crawl`, {
       method: 'POST',
     });
@@ -242,6 +254,7 @@ class ApiClient {
    * @returns Promise with crawl job status and metadata
    */
   async getCrawlStatus(datasetId: string): Promise<{ data: CrawlJob[] | null; meta: ResponseMeta }> {
+    // Call backend directly (backend route is /datasets/:id/crawl/status)
     return this.request<CrawlJob[]>(`/datasets/${datasetId}/crawl/status`);
   }
 
@@ -255,6 +268,7 @@ class ApiClient {
     datasetId: string,
     format: 'csv' | 'xlsx'
   ): Promise<{ data: ExportResult | null; meta: ResponseMeta }> {
+    // Call backend directly (backend route is /datasets/:id/export)
     return this.request<ExportResult>(`/datasets/${datasetId}/export`, {
       method: 'POST',
       body: JSON.stringify({ format }),
@@ -266,20 +280,8 @@ class ApiClient {
    * @returns Promise with datasets array and metadata
    */
   async getDatasets(): Promise<{ data: Dataset[] | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend) - it can read the cookie server-side
-    const url = typeof window !== 'undefined' ? '/api/datasets' : `${this.baseUrl}/api/datasets`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
-    }
-    
-    const json = await response.json();
-    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    // Call backend directly (backend route is /datasets, not /api/datasets)
+    return this.request<Dataset[]>('/datasets');
   }
 
   /**
@@ -297,6 +299,7 @@ class ApiClient {
    * @returns Promise with businesses with crawl results and metadata
    */
   async getDatasetResults(datasetId: string): Promise<{ data: Business[] | null; meta: ResponseMeta }> {
+    // Call backend directly (backend route is /datasets/:id/results)
     return this.request<Business[]>(`/datasets/${datasetId}/results`);
   }
 
@@ -329,6 +332,7 @@ class ApiClient {
     data: { contacts: Array<{ type: 'email' | 'phone'; value: string; source_url: string }> } | null; 
     meta: ResponseMeta 
   }> {
+    // Call backend directly (backend route is /contacts)
     return this.request<{ contacts: Array<{ type: 'email' | 'phone'; value: string; source_url: string }> }>(
       `/contacts?businessId=${businessId}`
     );
@@ -343,6 +347,7 @@ class ApiClient {
     data: { rows_total: number; rows_to_export: number; watermark_text: string } | null; 
     meta: ResponseMeta 
   }> {
+    // Call backend directly (backend route is /exports/preview)
     return this.request<{ rows_total: number; rows_to_export: number; watermark_text: string }>(
       '/exports/preview',
       {
@@ -362,6 +367,7 @@ class ApiClient {
     datasetId: string,
     format: 'csv' | 'xlsx' = 'csv'
   ): Promise<Response> {
+    // Call backend directly (backend route is /exports/run)
     const url = `${this.baseUrl}/exports/run`;
     const response = await fetch(url, {
       method: 'POST',
@@ -395,6 +401,7 @@ class ApiClient {
     data: { job_ids: string[]; jobs_created: number; max_depth: number; pages_limit: number; message: string } | null; 
     meta: ResponseMeta 
   }> {
+    // Call backend directly (backend route is /crawl)
     return this.request<{ job_ids: string[]; jobs_created: number; max_depth: number; pages_limit: number; message: string }>(
       '/crawl',
       {
@@ -423,26 +430,15 @@ class ApiClient {
     } | null; 
     meta: ResponseMeta 
   }> {
-    // Call Next.js API route (not backend)
-    const url = typeof window !== 'undefined' ? '/api/dashboard/metrics' : `${this.baseUrl}/api/dashboard/metrics`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      return { 
-        data: null, 
-        meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } 
-      };
-    }
-    
-    const json = await response.json();
-    return { 
-      data: json.data || null, 
-      meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } 
-    };
+    // Call backend directly (backend route is /dashboard/metrics, not /api/dashboard/metrics)
+    return this.request<{ 
+      businesses_total: number; 
+      businesses_crawled: number; 
+      contacts_found: number; 
+      exports_this_month: number;
+      cities_scanned: number;
+      last_refresh: string | null;
+    }>('/dashboard/metrics');
   }
 
   /**
@@ -450,20 +446,8 @@ class ApiClient {
    * @returns Promise with industries and metadata
    */
   async getIndustries(): Promise<{ data: Industry[] | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend)
-    const url = typeof window !== 'undefined' ? '/api/industries' : `${this.baseUrl}/api/industries`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
-    }
-    
-    const json = await response.json();
-    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    // Call backend directly
+    return this.request<Industry[]>('/api/industries');
   }
 
   /**
@@ -472,21 +456,9 @@ class ApiClient {
    * @returns Promise with cities and metadata
    */
   async getCities(countryCode?: string): Promise<{ data: City[] | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend)
+    // Call backend directly
     const endpoint = countryCode ? `/api/cities?country=${countryCode}` : '/api/cities';
-    const url = typeof window !== 'undefined' ? endpoint : `${this.baseUrl}${endpoint}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
-    }
-    
-    const json = await response.json();
-    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    return this.request<City[]>(endpoint);
   }
 
   /**
@@ -495,21 +467,9 @@ class ApiClient {
    * @returns Promise with exports and metadata
    */
   async getExports(datasetId?: string): Promise<{ data: ExportResult[] | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend)
-    const endpoint = datasetId ? `/api/exports?dataset=${datasetId}` : '/api/exports';
-    const url = typeof window !== 'undefined' ? endpoint : `${this.baseUrl}${endpoint}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
-    
-    if (!response.ok) {
-      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
-    }
-    
-    const json = await response.json();
-    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    // Call backend directly (backend route is /exports, not /api/exports)
+    const endpoint = datasetId ? `/exports?dataset=${datasetId}` : '/exports';
+    return this.request<ExportResult[]>(endpoint);
   }
 
   /**
@@ -666,10 +626,11 @@ class ApiClient {
 
   /**
    * Get current authenticated user (from JWT cookie)
-   * Calls Next.js API route which can read the cookie server-side
+   * Calls Next.js API route which proxies to backend
    */
   async getCurrentUser(): Promise<{ data: User | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend) - it can read the cookie server-side
+    // Call Next.js API route which proxies to backend
+    // This is needed because Next.js can read cookies server-side
     const url = typeof window !== 'undefined' ? '/api/auth/me' : `${this.baseUrl}/api/auth/me`;
     const response = await fetch(url, {
       method: 'GET',
@@ -710,7 +671,7 @@ class ApiClient {
    * @returns Promise with subscription data
    */
   async getSubscription(): Promise<{ data: Subscription | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend)
+    // Call Next.js API route which proxies to backend
     const url = typeof window !== 'undefined' ? '/api/billing/subscription' : `${this.baseUrl}/api/billing/subscription`;
     const response = await fetch(url, {
       method: 'GET',
@@ -731,7 +692,7 @@ class ApiClient {
    * @returns Promise with usage data
    */
   async getUsage(): Promise<{ data: UsageData | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend)
+    // Call Next.js API route which proxies to backend
     const url = typeof window !== 'undefined' ? '/api/billing/usage' : `${this.baseUrl}/api/billing/usage`;
     const response = await fetch(url, {
       method: 'GET',
@@ -752,7 +713,7 @@ class ApiClient {
    * @returns Promise with invoices array
    */
   async getInvoices(): Promise<{ data: Invoice[] | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend)
+    // Call Next.js API route which proxies to backend
     const url = typeof window !== 'undefined' ? '/api/billing/invoices' : `${this.baseUrl}/api/billing/invoices`;
     const response = await fetch(url, {
       method: 'GET',

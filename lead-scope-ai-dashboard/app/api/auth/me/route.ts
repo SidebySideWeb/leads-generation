@@ -1,52 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerUser } from '@/lib/auth'
 
 /**
  * GET /api/auth/me
- * Get current authenticated user
+ * Pure proxy to backend /api/auth/me
  * 
- * This endpoint returns the current user from the JWT token.
- * It's used by the API client's getCurrentUser() method.
- * 
- * More lenient than withGuard - tries to read cookie from headers if cookies() fails
+ * BACKEND IS THE SINGLE SOURCE OF TRUTH.
+ * This endpoint forwards the request to backend and returns the response verbatim.
+ * No JWT verification or permission logic here.
  */
 export async function GET(request: NextRequest) {
   try {
-    // Try to get user, passing request so it can read from headers
-    const user = await getServerUser(request)
-
-    if (!user) {
-      console.log('[auth/me] No user found. Cookie header:', request.headers.get('cookie')?.substring(0, 100))
-      return NextResponse.json(
-        {
-          data: null,
-          meta: {
-            plan_id: 'demo',
-            gated: false,
-            total_available: 0,
-            total_returned: 0,
-            gate_reason: 'Not authenticated',
-          },
-        },
-        { status: 401 }
-      )
-    }
-
-    return NextResponse.json({
-      data: {
-        id: user.id,
-        email: user.email,
-        plan: user.plan,
+    // Get backend URL
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.NODE_ENV === 'production' 
+        ? 'https://api.leadscope.gr'
+        : 'http://localhost:3001')
+    
+    // Forward request to backend
+    const cookieHeader = request.headers.get('cookie')
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Cookie': cookieHeader || '',
+        'Content-Type': 'application/json',
       },
-      meta: {
-        plan_id: user.plan,
-        gated: false,
-        total_available: 1,
-        total_returned: 1,
-      },
+      credentials: 'include',
     })
+
+    // Get response body
+    const data = await response.json()
+
+    // Return backend response verbatim
+    return NextResponse.json(data, { status: response.status })
   } catch (error: any) {
-    console.error('[auth/me] Error:', error)
+    console.error('[auth/me] Proxy error:', error)
     return NextResponse.json(
       {
         data: null,
@@ -55,10 +42,10 @@ export async function GET(request: NextRequest) {
           gated: false,
           total_available: 0,
           total_returned: 0,
-          gate_reason: 'Failed to get user',
+          gate_reason: 'Failed to connect to backend',
         },
       },
-      { status: 500 }
+      { status: 503 }
     )
   }
 }

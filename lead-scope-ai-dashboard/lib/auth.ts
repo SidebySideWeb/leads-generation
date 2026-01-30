@@ -1,7 +1,12 @@
 /**
  * Server-side authentication utilities
- * Handles JWT token decoding and user extraction
- * Automatically regenerates token if plan in DB differs from plan in token
+ * 
+ * DEPRECATED: Backend is the single source of truth for authentication.
+ * This file is kept for backward compatibility with routes that haven't been
+ * converted to proxies yet. New routes should proxy to backend instead.
+ * 
+ * BACKEND HANDLES ALL JWT VERIFICATION.
+ * Frontend should NOT verify JWTs - trust backend responses.
  */
 
 import { cookies } from 'next/headers'
@@ -11,6 +16,10 @@ import type { User } from './types'
 
 /**
  * Get user from JWT token stored in http-only cookie
+ * 
+ * DEPRECATED: Use backend /api/auth/me endpoint instead.
+ * This function is kept for backward compatibility only.
+ * 
  * Automatically regenerates token if plan in DB differs from plan in token
  * Returns null if token is missing, invalid, or expired
  */

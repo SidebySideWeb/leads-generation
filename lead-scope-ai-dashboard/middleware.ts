@@ -3,40 +3,40 @@ import type { NextRequest } from 'next/server'
 import { shouldBypassGuard } from './lib/api-guard-utils'
 import { workerGuard, isInternalRoute } from './lib/worker-guard'
 
+const COOKIE_NAME = 'token'
+
 /**
  * Middleware to protect routes
  * 
+ * BACKEND IS THE SINGLE SOURCE OF TRUTH FOR AUTHENTICATION.
+ * This middleware only checks for cookie presence, not validity.
+ * 
  * Priority:
  * 1. Worker routes (/api/internal/*) - require X-WORKER-SECRET header
- * 2. Dashboard routes - require auth token
- * 3. API routes - protected by withGuard() in route handlers
+ * 2. Dashboard routes - check for auth cookie presence only
+ * 3. API routes - proxy to backend which handles auth
  */
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const hostname = request.nextUrl.hostname
 
   // Handle Vercel redirect: leadscope.gr -> www.leadscope.gr
-  // This prevents cookie issues and redirect loops
-  // Cookie is set with domain '.leadscope.gr' which works for both, but we want consistency
   if (hostname === 'leadscope.gr') {
     const url = request.nextUrl.clone()
     url.hostname = 'www.leadscope.gr'
-    console.log(`[Middleware] Redirecting ${hostname} to www.leadscope.gr for ${pathname}`)
-    return NextResponse.redirect(url, 301) // Permanent redirect
+    return NextResponse.redirect(url, 301)
   }
 
   // 1. Protect worker/internal routes first (highest priority)
   if (isInternalRoute(pathname)) {
     const guardResponse = workerGuard(request)
     if (guardResponse) {
-      return guardResponse // Reject if worker secret is invalid
+      return guardResponse
     }
-    // Worker secret is valid, continue
     return NextResponse.next()
   }
 
-  // Allow access to auth routes and public API routes (webhooks, auth endpoints)
-  // Note: Route groups like (auth) don't appear in URLs, so check actual paths
+  // Allow access to auth routes and public API routes
   if (
     shouldBypassGuard(pathname) ||
     pathname === '/login' ||
@@ -46,23 +46,31 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Dashboard routes - allow through without checking cookie
-  // Cookie checking is unreliable for cross-domain cookies (api.leadscope.gr -> www.leadscope.gr)
-  // The cookie is sent in request headers, but Next.js cookies() might not read it server-side
-  // Let page components handle auth via API calls (they'll redirect on 401/403)
+  // Dashboard routes - check for cookie presence only
+  // Do NOT verify JWT - backend handles that
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/datasets') || 
       pathname.startsWith('/discover') || pathname.startsWith('/exports') ||
       pathname.startsWith('/billing') || pathname.startsWith('/settings') ||
       pathname.startsWith('/cities') || pathname.startsWith('/industries') ||
       pathname.startsWith('/refresh')) {
-    // Always allow through - no redirect here
-    // Page components will handle auth checks
+    // Check for cookie presence (not validity)
+    const cookieHeader = request.headers.get('cookie')
+    const hasToken = cookieHeader?.includes(`${COOKIE_NAME}=`)
+    
+    if (!hasToken) {
+      // No cookie found - redirect to login
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(url)
+    }
+    
+    // Cookie present - allow through
+    // Backend will validate on API calls
     return NextResponse.next()
   }
 
-  // API routes are protected by withGuard() in route handlers
-  // This middleware doesn't block them - guard handles validation
-
+  // API routes - allow through, they proxy to backend
   return NextResponse.next()
 }
 

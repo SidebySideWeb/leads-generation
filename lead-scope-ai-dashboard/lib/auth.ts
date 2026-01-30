@@ -14,51 +14,32 @@ import type { User } from './types'
  * Automatically regenerates token if plan in DB differs from plan in token
  * Returns null if token is missing, invalid, or expired
  */
-export async function getServerUser(): Promise<User | null> {
+export async function getServerUser(request?: { headers: { get: (name: string) => string | null } }): Promise<User | null> {
   try {
     const cookieStore = await cookies()
-    const token = cookieStore.get(COOKIE_NAME)?.value
+    let token = cookieStore.get(COOKIE_NAME)?.value
+
+    // If token not found in cookies(), try reading from request headers (for cross-domain cookies)
+    if (!token && request) {
+      const cookieHeader = request.headers.get('cookie')
+      if (cookieHeader) {
+        const tokenMatch = cookieHeader.match(new RegExp(`${COOKIE_NAME}=([^;]+)`))
+        if (tokenMatch && tokenMatch[1]) {
+          token = tokenMatch[1]
+          console.log(`[getServerUser] Found ${COOKIE_NAME} in request headers`)
+        }
+      }
+    }
 
     if (!token) {
       // Log for debugging - cookie might not be accessible server-side
       // This can happen with cross-domain cookies set by api.leadscope.gr
       const allCookies = cookieStore.getAll().map(c => c.name)
       console.log(`[getServerUser] No ${COOKIE_NAME} cookie found. Available cookies:`, allCookies)
-      
-      // Try to make API call to verify auth (cookie will be sent automatically)
-      // This works because the cookie is sent in the request headers
-      try {
-        const { headers } = await import('next/headers')
-        const headersList = await headers()
-        const cookieHeader = headersList.get('cookie')
-        
-        if (cookieHeader && cookieHeader.includes(`${COOKIE_NAME}=`)) {
-          console.log(`[getServerUser] Cookie found in request headers, making API call to verify`)
-          // Make API call to backend to verify auth
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
-          const response = await fetch(`${apiUrl}/api/auth/me`, {
-            method: 'GET',
-            headers: {
-              'Cookie': cookieHeader,
-            },
-            credentials: 'include',
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            if (data.user) {
-              return {
-                id: data.user.id,
-                email: data.user.email,
-                plan: data.user.plan,
-              }
-            }
-          }
-        }
-      } catch (apiError) {
-        console.error('[getServerUser] API fallback failed:', apiError)
+      if (request) {
+        const cookieHeader = request.headers.get('cookie')
+        console.log(`[getServerUser] Request cookie header:`, cookieHeader ? cookieHeader.substring(0, 200) : 'none')
       }
-      
       return null
     }
 

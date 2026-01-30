@@ -255,6 +255,21 @@ async function getUserPermissionsFromDB(userId: string): Promise<UserPermissions
 }
 
 /**
+ * Get JWT token from request headers (for cross-domain cookies)
+ */
+function getTokenFromRequest(request: NextRequest): string | null {
+  // Try to get token from cookie header directly
+  const cookieHeader = request.headers.get('cookie')
+  if (cookieHeader) {
+    const tokenMatch = cookieHeader.match(/token=([^;]+)/)
+    if (tokenMatch && tokenMatch[1]) {
+      return tokenMatch[1]
+    }
+  }
+  return null
+}
+
+/**
  * API Route Guard
  * 
  * Validates authentication and subscription status.
@@ -266,9 +281,33 @@ async function getUserPermissionsFromDB(userId: string): Promise<UserPermissions
 export async function apiGuard(request: NextRequest): Promise<GuardResult> {
   try {
     // 1. Get authenticated user from JWT
-    const user = await getServerUser()
+    // Pass request to getServerUser so it can read from headers if cookies() fails
+    let user = await getServerUser(request)
+    
+    // If getServerUser() failed, try reading token from headers directly
+    if (!user) {
+      const tokenFromHeader = getTokenFromRequest(request)
+      if (tokenFromHeader) {
+        console.log('[apiGuard] Token found in headers, verifying directly...')
+        const { verifyJWT } = await import('./jwt')
+        const tokenData = await verifyJWT(tokenFromHeader)
+        if (tokenData) {
+          user = {
+            id: tokenData.id,
+            email: tokenData.email,
+            plan: tokenData.plan,
+          }
+          console.log('[apiGuard] User verified from header token:', user.email)
+        }
+      }
+    }
     
     if (!user) {
+      const cookieHeader = request.headers.get('cookie')
+      console.log('[apiGuard] No user found. Cookie header present:', !!cookieHeader)
+      if (cookieHeader) {
+        console.log('[apiGuard] Cookie header (first 200 chars):', cookieHeader.substring(0, 200))
+      }
       return {
         allowed: false,
         error: 'Unauthorized. Please log in to continue.',

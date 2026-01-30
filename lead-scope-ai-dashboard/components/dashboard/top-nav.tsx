@@ -50,9 +50,14 @@ export function TopNav() {
   useEffect(() => {
     async function loadUser() {
       try {
+        console.log('[TopNav] Loading user...')
         const response = await api.getCurrentUser()
+        console.log('[TopNav] getCurrentUser response:', response)
         if (response.data) {
+          console.log('[TopNav] User loaded:', response.data.email)
           setUser(response.data)
+        } else {
+          console.warn('[TopNav] No user data in response. Meta:', response.meta)
         }
       } catch (error) {
         console.error('[TopNav] Failed to load user:', error)

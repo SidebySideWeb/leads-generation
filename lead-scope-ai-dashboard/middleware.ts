@@ -41,23 +41,22 @@ export function middleware(request: NextRequest) {
   // Note: Route groups like (dashboard) don't appear in URLs
   // Cookie is set by backend API (api.leadscope.gr) with domain '.leadscope.gr'
   // This makes it accessible to www.leadscope.gr middleware
-  // However, there may be a timing issue where cookie isn't immediately available
-  // after login redirect, so we allow the request through and let page components
-  // handle the final auth check (which can make API calls to verify)
+  // 
+  // IMPORTANT: We allow requests through even without token to avoid redirect loops.
+  // The page components (server components) will check auth and redirect if needed.
+  // This is necessary because:
+  // 1. Cross-domain cookies may have timing issues
+  // 2. Client components can't check cookies server-side
+  // 3. Server components can use getCurrentUser() which makes API calls to verify
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/datasets') || 
       pathname.startsWith('/discover') || pathname.startsWith('/exports') ||
       pathname.startsWith('/billing') || pathname.startsWith('/settings') ||
       pathname.startsWith('/cities') || pathname.startsWith('/industries') ||
       pathname.startsWith('/refresh')) {
-    if (!token) {
-      // Log for debugging
-      console.log(`[Middleware] No token found for ${pathname}, redirecting to /login`)
-      // Redirect to login if no token
-      const loginUrl = new URL('/login', request.url)
-      return NextResponse.redirect(loginUrl)
-    }
-    // Token found, allow access
-    console.log(`[Middleware] Token found for ${pathname}, allowing access`)
+    // Allow request through - page components will handle auth
+    // Server components use getCurrentUser() which checks via API
+    // Client components will fail API calls and redirect via API client
+    return NextResponse.next()
   }
 
   // API routes are protected by withGuard() in route handlers

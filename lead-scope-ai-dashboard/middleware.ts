@@ -24,7 +24,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = request.cookies.get('auth-token')?.value
+  const token = request.cookies.get('token')?.value
 
   // Allow access to auth routes and public API routes (webhooks, auth endpoints)
   // Note: Route groups like (auth) don't appear in URLs, so check actual paths

@@ -16,24 +16,32 @@ import type { User } from './types'
  */
 export async function getServerUser(request?: { headers: { get: (name: string) => string | null } }): Promise<User | null> {
   try {
-    const cookieStore = await cookies()
-    let token = cookieStore.get(COOKIE_NAME)?.value
-
-    // If token not found in cookies(), try reading from request headers (for cross-domain cookies)
-    if (!token && request) {
+    let token: string | null = null
+    
+    // First, try to read from request headers (most reliable for cross-domain cookies)
+    if (request) {
       const cookieHeader = request.headers.get('cookie')
       if (cookieHeader) {
         const tokenMatch = cookieHeader.match(new RegExp(`${COOKIE_NAME}=([^;]+)`))
         if (tokenMatch && tokenMatch[1]) {
-          token = tokenMatch[1]
+          token = decodeURIComponent(tokenMatch[1])
           console.log(`[getServerUser] Found ${COOKIE_NAME} in request headers`)
         }
       }
     }
+    
+    // Fallback to Next.js cookies() if not found in headers
+    if (!token) {
+      const cookieStore = await cookies()
+      token = cookieStore.get(COOKIE_NAME)?.value || null
+      if (token) {
+        console.log(`[getServerUser] Found ${COOKIE_NAME} in Next.js cookies()`)
+      }
+    }
 
     if (!token) {
-      // Log for debugging - cookie might not be accessible server-side
-      // This can happen with cross-domain cookies set by api.leadscope.gr
+      // Log for debugging
+      const cookieStore = await cookies()
       const allCookies = cookieStore.getAll().map(c => c.name)
       console.log(`[getServerUser] No ${COOKIE_NAME} cookie found. Available cookies:`, allCookies)
       if (request) {

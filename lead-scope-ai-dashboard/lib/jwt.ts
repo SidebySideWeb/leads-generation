@@ -55,18 +55,25 @@ export async function decodeJWT(token: string): Promise<{
     // Decode without verification – for read-only scenarios
     const payload = jose.decodeJwt(token)
     
-    const validPlans: PlanId[] = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
-    
-    if (
-      typeof payload.id === 'string' &&
-      typeof payload.email === 'string' &&
-      typeof payload.plan === 'string' &&
-      validPlans.includes(payload.plan as PlanId)
-    ) {
+    // Backend JWT only has id and email
+    if (typeof payload.id === 'string' && typeof payload.email === 'string') {
+      // If plan is in token, use it
+      if (typeof payload.plan === 'string') {
+        const validPlans: PlanId[] = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
+        if (validPlans.includes(payload.plan as PlanId)) {
+          return {
+            id: payload.id,
+            email: payload.email,
+            plan: payload.plan as PlanId,
+          }
+        }
+      }
+      
+      // Plan not in token - return with demo plan (will be fetched from DB later)
       return {
         id: payload.id,
         email: payload.email,
-        plan: payload.plan as PlanId,
+        plan: 'demo', // Will be updated from database
       }
     }
     
@@ -79,6 +86,8 @@ export async function decodeJWT(token: string): Promise<{
 
 /**
  * Verify and decode JWT token
+ * Backend JWT only includes id and email, not plan
+ * Plan will be fetched from database if not in token
  */
 export async function verifyJWT(token: string): Promise<{
   id: string
@@ -91,18 +100,65 @@ export async function verifyJWT(token: string): Promise<{
       algorithms: ['HS256'],
     })
 
-    const validPlans: PlanId[] = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
-
-    if (
-      typeof payload.id === 'string' &&
-      typeof payload.email === 'string' &&
-      typeof payload.plan === 'string' &&
-      validPlans.includes(payload.plan as PlanId)
-    ) {
-      return {
-        id: payload.id,
-        email: payload.email,
-        plan: payload.plan as PlanId,
+    // Backend JWT only has id and email
+    if (typeof payload.id === 'string' && typeof payload.email === 'string') {
+      // If plan is in token, use it
+      if (typeof payload.plan === 'string') {
+        const validPlans: PlanId[] = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
+        if (validPlans.includes(payload.plan as PlanId)) {
+          return {
+            id: payload.id,
+            email: payload.email,
+            plan: payload.plan as PlanId,
+          }
+        }
+      }
+      
+      // Plan not in token - fetch from database
+      // This happens when token is from backend (which doesn't include plan)
+      try {
+        const { Pool } = await import('pg')
+        const pool = new Pool({
+          connectionString: process.env.DATABASE_URL,
+        })
+        
+        // Get user's plan from database (check subscriptions table first, then users table)
+        const subResult = await pool.query<{ plan: string }>(
+          `SELECT plan FROM subscriptions 
+           WHERE user_id = $1 AND status IN ('active', 'trialing')
+           ORDER BY created_at DESC LIMIT 1`,
+          [payload.id]
+        )
+        
+        let plan: PlanId = 'demo'
+        if (subResult.rows[0]) {
+          plan = subResult.rows[0].plan as PlanId
+        } else {
+          // Fallback to users table
+          const userResult = await pool.query<{ plan: string }>(
+            'SELECT plan FROM users WHERE id = $1',
+            [payload.id]
+          )
+          if (userResult.rows[0]) {
+            plan = userResult.rows[0].plan as PlanId
+          }
+        }
+        
+        await pool.end()
+        
+        return {
+          id: payload.id,
+          email: payload.email,
+          plan: plan,
+        }
+      } catch (dbError) {
+        console.error('[verifyJWT] Failed to fetch plan from database:', dbError)
+        // Return with demo plan as fallback
+        return {
+          id: payload.id,
+          email: payload.email,
+          plan: 'demo',
+        }
       }
     }
 

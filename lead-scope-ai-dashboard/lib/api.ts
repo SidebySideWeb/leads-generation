@@ -241,14 +241,20 @@ class ApiClient {
    * @returns Promise with datasets array and metadata
    */
   async getDatasets(): Promise<{ data: Dataset[] | null; meta: ResponseMeta }> {
-    console.log('[API] getDatasets() called, baseUrl:', this.baseUrl)
-    const result = await this.request<Dataset[]>('/datasets');
-    console.log('[API] getDatasets() response:', { 
-      hasData: !!result.data, 
-      dataLength: result.data?.length || 0,
-      meta: result.meta 
-    })
-    return result;
+    // Call Next.js API route (not backend) - it can read the cookie server-side
+    const url = typeof window !== 'undefined' ? '/api/datasets' : `${this.baseUrl}/api/datasets`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 
   /**
@@ -392,14 +398,26 @@ class ApiClient {
     } | null; 
     meta: ResponseMeta 
   }> {
-    return this.request<{ 
-      businesses_total: number; 
-      businesses_crawled: number; 
-      contacts_found: number; 
-      exports_this_month: number;
-      cities_scanned: number;
-      last_refresh: string | null;
-    }>('/dashboard/metrics');
+    // Call Next.js API route (not backend)
+    const url = typeof window !== 'undefined' ? '/api/dashboard/metrics' : `${this.baseUrl}/api/dashboard/metrics`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { 
+        data: null, 
+        meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } 
+      };
+    }
+    
+    const json = await response.json();
+    return { 
+      data: json.data || null, 
+      meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } 
+    };
   }
 
   /**
@@ -407,7 +425,20 @@ class ApiClient {
    * @returns Promise with industries and metadata
    */
   async getIndustries(): Promise<{ data: Industry[] | null; meta: ResponseMeta }> {
-    return this.request<Industry[]>('/industries');
+    // Call Next.js API route (not backend)
+    const url = typeof window !== 'undefined' ? '/api/industries' : `${this.baseUrl}/api/industries`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 
   /**
@@ -416,8 +447,21 @@ class ApiClient {
    * @returns Promise with cities and metadata
    */
   async getCities(countryCode?: string): Promise<{ data: City[] | null; meta: ResponseMeta }> {
-    const endpoint = countryCode ? `/cities?country=${countryCode}` : '/cities';
-    return this.request<City[]>(endpoint);
+    // Call Next.js API route (not backend)
+    const endpoint = countryCode ? `/api/cities?country=${countryCode}` : '/api/cities';
+    const url = typeof window !== 'undefined' ? endpoint : `${this.baseUrl}${endpoint}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 
   /**
@@ -426,8 +470,21 @@ class ApiClient {
    * @returns Promise with exports and metadata
    */
   async getExports(datasetId?: string): Promise<{ data: ExportResult[] | null; meta: ResponseMeta }> {
-    const endpoint = datasetId ? `/exports?dataset=${datasetId}` : '/exports';
-    return this.request<ExportResult[]>(endpoint);
+    // Call Next.js API route (not backend)
+    const endpoint = datasetId ? `/api/exports?dataset=${datasetId}` : '/api/exports';
+    const url = typeof window !== 'undefined' ? endpoint : `${this.baseUrl}${endpoint}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 
   /**

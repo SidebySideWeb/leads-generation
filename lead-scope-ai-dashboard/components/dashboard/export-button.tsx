@@ -18,18 +18,42 @@ import { canPerformAction } from "@/lib/permissions"
 interface ExportButtonProps {
   datasetId: string
   onExportComplete?: () => void
+  discoveryRuns?: Array<{
+    id: string;
+    status: 'running' | 'completed' | 'failed';
+    created_at: string;
+    completed_at: string | null;
+  }>
 }
 
-export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps) {
+export function ExportButton({ datasetId, onExportComplete, discoveryRuns = [] }: ExportButtonProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
   const { permissions } = usePermissions()
   
   // Check if export is allowed (for UI display only - backend always enforces)
   const exportCheck = canPerformAction(permissions, 'export')
+  
+  // Check if latest discovery run is completed
+  // Export is disabled if latest discovery_run.status !== 'completed'
+  const latestDiscoveryRun = discoveryRuns.length > 0 ? discoveryRuns[0] : null
+  const isDiscoveryCompleted = latestDiscoveryRun?.status === 'completed'
+  const isDiscoveryRunning = latestDiscoveryRun?.status === 'running'
+  const exportDisabled = loading || !isDiscoveryCompleted || (latestDiscoveryRun && isDiscoveryRunning)
+  
   // Note: We don't block the action, just show visual state
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
+    // Prevent export if discovery is not completed
+    if (!isDiscoveryCompleted && latestDiscoveryRun) {
+      toast({
+        title: "Export unavailable",
+        description: "Please wait for the discovery run to complete before exporting",
+        variant: "default",
+      })
+      return
+    }
+    
     setLoading(true)
 
     try {
@@ -94,9 +118,8 @@ export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps)
         <DropdownMenuTrigger asChild>
           <Button 
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
-            disabled={loading}
-            // Never block action - only visual state
-            // Backend will enforce limits
+            disabled={exportDisabled}
+            title={!isDiscoveryCompleted && latestDiscoveryRun ? "Wait for discovery to complete" : undefined}
           >
             {loading ? (
               <>
@@ -114,8 +137,9 @@ export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps)
         <DropdownMenuContent align="end">
           <DropdownMenuItem 
             onClick={() => handleExport('csv')}
-            disabled={loading}
+            disabled={exportDisabled}
             className="cursor-pointer"
+            title={!isDiscoveryCompleted && latestDiscoveryRun ? "Wait for discovery to complete" : undefined}
           >
             {loading ? (
               <>
@@ -131,8 +155,9 @@ export function ExportButton({ datasetId, onExportComplete }: ExportButtonProps)
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => handleExport('xlsx')}
-            disabled={loading}
+            disabled={exportDisabled}
             className="cursor-pointer"
+            title={!isDiscoveryCompleted && latestDiscoveryRun ? "Wait for discovery to complete" : undefined}
           >
             {loading ? (
               <>

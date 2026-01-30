@@ -74,14 +74,21 @@ export default function DatasetDetailPage() {
   })
   const [loading, setLoading] = useState(true)
   const [networkError, setNetworkError] = useState<string | null>(null)
+  const [discoveryRuns, setDiscoveryRuns] = useState<Array<{
+    id: string;
+    status: 'running' | 'completed' | 'failed';
+    created_at: string;
+    completed_at: string | null;
+  }>>([])
   const { toast } = useToast()
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [datasetRes, resultsRes] = await Promise.all([
+        const [datasetRes, resultsRes, discoveryRunsRes] = await Promise.all([
           api.getDataset(datasetId),
-          api.getDatasetResults(datasetId)
+          api.getDatasetResults(datasetId),
+          api.getDiscoveryRuns(datasetId).catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } }))
         ])
 
         if (datasetRes.data) {
@@ -93,6 +100,10 @@ export default function DatasetDetailPage() {
           setBusinesses(resultsRes.data)
         }
         setBusinessesMeta(resultsRes.meta)
+        
+        if (discoveryRunsRes.data) {
+          setDiscoveryRuns(discoveryRunsRes.data)
+        }
       } catch (error) {
         if (error instanceof NetworkError) {
           setNetworkError(error.message)
@@ -198,7 +209,7 @@ export default function DatasetDetailPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <ExportButton datasetId={datasetId} />
+            <ExportButton datasetId={datasetId} discoveryRuns={discoveryRuns} />
           </div>
         </div>
       </div>

@@ -108,24 +108,39 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
     setError(null)
 
     try {
+      // Note: This is actually starting discovery, not crawl
+      // The button text should be "Start Discovery" but keeping function name for now
       const response = await api.runCrawl(datasetId)
 
       if (!response.data) {
         toast({
-          title: "Crawl failed to start",
-          description: response.meta.gate_reason || "Failed to start crawl job",
+          title: "Discovery failed to start",
+          description: response.meta.gate_reason || "Failed to start discovery",
           variant: response.meta.gated ? "default" : "destructive",
         })
         setMeta(response.meta)
         return
       }
 
+      // Check if response contains discovery_run data
+      // The backend now returns discovery_run in the response
+      if (response.data && 'id' in response.data) {
+        // Optimistically add discovery run
+        const optimisticRun = {
+          id: (response.data as any).id || `temp-${Date.now()}`,
+          status: 'running' as const,
+          created_at: new Date().toISOString(),
+          completed_at: null,
+        }
+        setDiscoveryRuns(prev => [optimisticRun, ...prev])
+      }
+
       toast({
-        title: "Crawl started",
-        description: "Crawl job has been queued successfully",
+        title: "Discovery started",
+        description: "Discovery run has been started successfully",
       })
 
-      // Reload status after a short delay
+      // Reload status after a short delay to get real data
       setTimeout(() => {
         loadCrawlStatus()
       }, 1000)
@@ -138,7 +153,7 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
           variant: "destructive",
         })
       } else {
-        setError('Failed to start crawl')
+        setError('Failed to start discovery')
         toast({
           title: "Error",
           description: "An unexpected error occurred",
@@ -154,7 +169,7 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
     loadCrawlStatus()
   }, [loadCrawlStatus])
 
-  // Poll for updates if there's a running discovery run
+  // Poll for updates if there's a running discovery run (every 3-5 seconds)
   useEffect(() => {
     const hasRunningDiscovery = discoveryRuns.some(run => run.status === 'running')
     
@@ -164,7 +179,7 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
     
     const pollInterval = setInterval(() => {
       loadCrawlStatus()
-    }, 5000) // Poll every 5 seconds
+    }, 4000) // Poll every 4 seconds (between 3-5 seconds)
     
     return () => {
       clearInterval(pollInterval)
@@ -216,7 +231,7 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
               ) : (
                 <>
                   <Play className="w-4 h-4 mr-2" />
-                  Start Crawl
+                  Start Discovery
                 </>
               )}
             </Button>

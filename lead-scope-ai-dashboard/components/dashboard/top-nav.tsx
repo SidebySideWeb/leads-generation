@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Menu, Bell, User, LogOut, Settings, HelpCircle, Compass } from "lucide-react"
+import { Menu, Bell, User as UserIcon, LogOut, Settings, HelpCircle, Compass } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import {
   LayoutDashboard,
@@ -139,7 +139,7 @@ export function TopNav() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
-                <User className="w-4 h-4 text-muted-foreground" />
+                <UserIcon className="w-4 h-4 text-muted-foreground" />
               </div>
               <span className="sr-only">User menu</span>
             </Button>

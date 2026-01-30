@@ -571,9 +571,43 @@ class ApiClient {
 
   /**
    * Get current authenticated user (from JWT cookie)
+   * Calls Next.js API route which can read the cookie server-side
    */
   async getCurrentUser(): Promise<{ data: User | null; meta: ResponseMeta }> {
-    return this.request<User>('/api/auth/me');
+    // Call Next.js API route (not backend) - it can read the cookie server-side
+    const url = typeof window !== 'undefined' ? '/api/auth/me' : `${this.baseUrl}/api/auth/me`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to get user' }));
+      return {
+        data: null,
+        meta: {
+          plan_id: 'demo',
+          gated: false,
+          total_available: 0,
+          total_returned: 0,
+          gate_reason: error.error || 'Failed to get user',
+        },
+      };
+    }
+
+    const json = await response.json();
+    return {
+      data: json.data || null,
+      meta: json.meta || {
+        plan_id: 'demo',
+        gated: false,
+        total_available: 0,
+        total_returned: 0,
+      },
+    };
   }
 
   /**

@@ -187,12 +187,12 @@ class ApiClient {
    * @returns Promise with discovered businesses and metadata
    */
   async discoverBusinesses(input: {
-    industryId: number;
-    cityId: number;
+    industryId: string; // UUID
+    cityId: string; // UUID
     datasetId?: string;
   }): Promise<{ data: Business[] | null; meta: ResponseMeta }> {
     // Validate input before sending
-    if (isNaN(input.industryId) || isNaN(input.cityId)) {
+    if (!input.industryId || !input.cityId) {
       console.error('[API] Invalid discovery input:', input);
       return {
         data: null,
@@ -201,7 +201,7 @@ class ApiClient {
           gated: false,
           total_available: 0,
           total_returned: 0,
-          gate_reason: 'Invalid industryId or cityId: must be valid numbers',
+          gate_reason: 'Invalid industryId or cityId: both are required',
         },
       };
     }

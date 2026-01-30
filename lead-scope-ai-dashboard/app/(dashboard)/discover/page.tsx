@@ -98,11 +98,8 @@ export default function DiscoverPage() {
       return
     }
 
-    // Validate that we have valid numeric IDs
-    const industryId = Number.parseInt(selectedIndustry, 10)
-    const cityId = Number.parseInt(selectedCity, 10)
-
-    if (isNaN(industryId) || isNaN(cityId)) {
+    // Validate that we have selected values
+    if (!selectedIndustry || !selectedCity) {
       toast({
         title: "Invalid selection",
         description: "Please select valid industry and city",
@@ -114,10 +111,11 @@ export default function DiscoverPage() {
     setLoading(true)
 
     try {
-      console.log('[Discover] Sending discovery request:', { industryId, cityId })
+      // Both industries and cities use UUIDs (strings)
+      console.log('[Discover] Sending discovery request:', { industryId: selectedIndustry, cityId: selectedCity })
       const response = await api.discoverBusinesses({
-        industryId,
-        cityId,
+        industryId: selectedIndustry, // UUID string
+        cityId: selectedCity, // UUID string
       })
 
       // Check for errors first

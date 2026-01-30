@@ -138,12 +138,12 @@ export interface Export {
 }
 
 export interface Industry {
-  id: number;
+  id: string; // UUID, not a number
   name: string;
 }
 
 export interface City {
-  id: number;
+  id: string; // UUID, not a number
   name: string;
   country: string;
   latitude: number | null;

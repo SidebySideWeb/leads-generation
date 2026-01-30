@@ -15,13 +15,13 @@ import {
 } from "lucide-react"
 
 const sidebarItems = [
-  { name: "Dashboard", href: "/(dashboard)", icon: LayoutDashboard },
-  { name: "Discover Leads", href: "/(dashboard)/discover", icon: Search },
-  { name: "My Datasets", href: "/(dashboard)/datasets", icon: Database },
-  { name: "Refresh Status", href: "/(dashboard)/refresh", icon: RefreshCw },
-  { name: "Exports", href: "/(dashboard)/exports", icon: Download },
-  { name: "Billing", href: "/(dashboard)/billing", icon: CreditCard },
-  { name: "Settings", href: "/(dashboard)/settings", icon: Settings },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Discover Leads", href: "/discover", icon: Search },
+  { name: "My Datasets", href: "/datasets", icon: Database },
+  { name: "Refresh Status", href: "/refresh", icon: RefreshCw },
+  { name: "Exports", href: "/exports", icon: Download },
+  { name: "Billing", href: "/billing", icon: CreditCard },
+  { name: "Settings", href: "/settings", icon: Settings },
 ]
 
 export function Sidebar() {
@@ -60,7 +60,7 @@ export function Sidebar() {
           <p className="text-xs text-muted-foreground mb-1">Current Plan</p>
           <p className="text-sm font-medium text-sidebar-foreground">Snapshot</p>
           <Link
-            href="/(dashboard)/billing"
+            href="/billing"
             className="text-xs text-primary hover:underline"
           >
             Upgrade to Professional

@@ -27,8 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { ExportAction } from "@/components/dashboard/export-action"
-import { getCurrentUser } from "@/lib/auth-server"
-import { redirect } from "next/navigation"
+// Auth is handled client-side via API calls (they redirect on 401/403)
 
 const statusConfig = {
   snapshot: {
@@ -49,11 +48,10 @@ const statusConfig = {
 } as const
 
 export default async function DatasetsPage() {
-  const user = await getCurrentUser()
-  
-  if (!user) {
-    redirect('/login')
-  }
+  // Don't check auth server-side - cookie might not be readable due to cross-domain
+  // The cookie is sent in the request, but Next.js cookies() might not read it
+  // Let the page load and API calls will handle auth (they'll redirect on 401/403)
+  // This prevents the 307 redirect loop
 
   let datasets: Dataset[] | null = null
   let meta: ResponseMeta = {
@@ -98,7 +96,7 @@ export default async function DatasetsPage() {
           </p>
         </div>
         <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
-          <Link href="/(dashboard)/discover">
+          <Link href="/discover">
             <Plus className="mr-2 w-4 h-4" />
             New Discovery
           </Link>
@@ -122,7 +120,7 @@ export default async function DatasetsPage() {
           <AlertDescription className="text-foreground">
             <strong>{outdatedCount} dataset{outdatedCount > 1 ? "s" : ""}</strong> have not been 
             refreshed in over 30 days.{" "}
-            <Link href="/(dashboard)/billing" className="text-primary hover:underline">
+            <Link href="/billing" className="text-primary hover:underline">
               Upgrade to Professional
             </Link>{" "}
             for automatic monthly refreshes.
@@ -142,7 +140,7 @@ export default async function DatasetsPage() {
               Run your first discovery to create a dataset of verified business contacts.
             </p>
             <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Link href="/(dashboard)/discover">
+              <Link href="/discover">
                 <Plus className="mr-2 w-4 h-4" />
                 Run First Discovery
               </Link>
@@ -183,7 +181,7 @@ export default async function DatasetsPage() {
                     <TableRow key={dataset.id} className="border-border hover:bg-muted/50">
                       <TableCell className="font-medium text-foreground">
                         <Link
-                          href={`/(dashboard)/datasets/${dataset.id}`}
+                          href={`/datasets/${dataset.id}`}
                           className="hover:text-primary hover:underline"
                         >
                           {dataset.name}
@@ -218,7 +216,7 @@ export default async function DatasetsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={`/(dashboard)/datasets/${dataset.id}`}>
+                              <Link href={`/datasets/${dataset.id}`}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </Link>
@@ -228,7 +226,7 @@ export default async function DatasetsPage() {
                             <DropdownMenuSeparator />
                             {dataset.refreshStatus === "snapshot" && (
                               <DropdownMenuItem asChild>
-                                <Link href="/(dashboard)/billing">
+                                <Link href="/billing">
                                   <ArrowUpCircle className="mr-2 h-4 w-4" />
                                   Upgrade to Refresh
                                 </Link>

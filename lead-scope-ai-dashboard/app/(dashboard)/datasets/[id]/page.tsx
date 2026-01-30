@@ -157,7 +157,7 @@ export default function DatasetDetailPage() {
           </AlertDescription>
         </Alert>
         <Button asChild variant="outline">
-          <Link href="/(dashboard)/datasets">Back to Datasets</Link>
+          <Link href="/datasets">Back to Datasets</Link>
         </Button>
       </div>
     )
@@ -168,7 +168,7 @@ export default function DatasetDetailPage() {
       {/* Header */}
       <div className="flex flex-col gap-4">
         <Link
-          href="/(dashboard)/datasets"
+          href="/datasets"
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
         >
           <ArrowLeft className="w-4 h-4" />

@@ -25,7 +25,7 @@ export function GateBanner({ meta }: GateBannerProps) {
         {meta.gate_reason && <p>{meta.gate_reason}</p>}
         {meta.upgrade_hint && <p>{meta.upgrade_hint}</p>}
         <Button asChild size="sm" className="mt-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-          <Link href="/(dashboard)/billing">
+          <Link href="/billing">
             <ArrowUpCircle className="mr-2 w-4 h-4" />
             Upgrade Plan
           </Link>

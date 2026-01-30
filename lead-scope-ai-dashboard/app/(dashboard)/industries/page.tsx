@@ -94,7 +94,7 @@ export default function IndustriesPage() {
           </p>
         </div>
         <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
-          <Link href="/(dashboard)/discover">
+          <Link href="/discover">
             Start Discovery
             <ArrowRight className="ml-2 w-4 h-4" />
           </Link>

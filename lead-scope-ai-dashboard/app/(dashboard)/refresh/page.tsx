@@ -190,7 +190,7 @@ export default async function RefreshStatusPage() {
                         <TableRow key={dataset.id} className="border-border hover:bg-muted/50">
                           <TableCell className="font-medium text-foreground">
                             <Link
-                              href={`/(dashboard)/datasets/${dataset.id}`}
+                              href={`/datasets/${dataset.id}`}
                               className="hover:text-primary hover:underline"
                             >
                               {dataset.name}
@@ -214,7 +214,7 @@ export default async function RefreshStatusPage() {
                           <TableCell className="text-right">
                             {dataset.refreshStatus === "snapshot" ? (
                               <Button variant="ghost" size="sm" asChild className="h-8">
-                                <Link href="/(dashboard)/billing">
+                                <Link href="/billing">
                                   <ArrowUpCircle className="w-4 h-4 mr-1" />
                                   Upgrade
                                 </Link>

@@ -112,7 +112,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
-          <Link href="/(dashboard)/discover">
+          <Link href="/discover">
             Discover new leads
             <ArrowUpRight className="ml-2 w-4 h-4" />
           </Link>
@@ -203,7 +203,7 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-2">
             {contactsMeta && contactsMeta.total_available > 0 && <MetaInfo meta={contactsMeta} />}
             <Button variant="ghost" size="sm" asChild className="text-muted-foreground hover:text-foreground">
-              <Link href="/(dashboard)/datasets">
+              <Link href="/datasets">
                 View all
                 <ExternalLink className="ml-1 w-3 h-3" />
               </Link>

@@ -23,21 +23,21 @@ import {
 } from "lucide-react"
 
 const topNavItems = [
-  { name: "Cities", href: "/(dashboard)/cities" },
-  { name: "Industries", href: "/(dashboard)/industries" },
-  { name: "Exports", href: "/(dashboard)/exports" },
-  { name: "Billing", href: "/(dashboard)/billing" },
-  { name: "Account", href: "/(dashboard)/settings" },
+  { name: "Cities", href: "/cities" },
+  { name: "Industries", href: "/industries" },
+  { name: "Exports", href: "/exports" },
+  { name: "Billing", href: "/billing" },
+  { name: "Account", href: "/settings" },
 ]
 
 const mobileNavItems = [
-  { name: "Dashboard", href: "/(dashboard)", icon: LayoutDashboard },
-  { name: "Discover Leads", href: "/(dashboard)/discover", icon: Search },
-  { name: "My Datasets", href: "/(dashboard)/datasets", icon: Database },
-  { name: "Refresh Status", href: "/(dashboard)/refresh", icon: RefreshCw },
-  { name: "Exports", href: "/(dashboard)/exports", icon: Download },
-  { name: "Billing", href: "/(dashboard)/billing", icon: CreditCard },
-  { name: "Settings", href: "/(dashboard)/settings", icon: Settings },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Discover Leads", href: "/discover", icon: Search },
+  { name: "My Datasets", href: "/datasets", icon: Database },
+  { name: "Refresh Status", href: "/refresh", icon: RefreshCw },
+  { name: "Exports", href: "/exports", icon: Download },
+  { name: "Billing", href: "/billing", icon: CreditCard },
+  { name: "Settings", href: "/settings", icon: Settings },
 ]
 
 export function TopNav() {
@@ -129,13 +129,13 @@ export function TopNav() {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/(dashboard)/settings" className="cursor-pointer">
+              <Link href="/settings" className="cursor-pointer">
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/(dashboard)/billing" className="cursor-pointer">
+              <Link href="/billing" className="cursor-pointer">
                 <CreditCard className="w-4 h-4 mr-2" />
                 Billing
               </Link>

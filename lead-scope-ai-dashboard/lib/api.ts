@@ -672,7 +672,20 @@ class ApiClient {
    * @returns Promise with subscription data
    */
   async getSubscription(): Promise<{ data: Subscription | null; meta: ResponseMeta }> {
-    return this.request<Subscription>('/api/billing/subscription');
+    // Call Next.js API route (not backend)
+    const url = typeof window !== 'undefined' ? '/api/billing/subscription' : `${this.baseUrl}/api/billing/subscription`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 
   /**
@@ -680,7 +693,20 @@ class ApiClient {
    * @returns Promise with usage data
    */
   async getUsage(): Promise<{ data: UsageData | null; meta: ResponseMeta }> {
-    return this.request<UsageData>('/api/billing/usage');
+    // Call Next.js API route (not backend)
+    const url = typeof window !== 'undefined' ? '/api/billing/usage' : `${this.baseUrl}/api/billing/usage`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 
   /**
@@ -688,7 +714,20 @@ class ApiClient {
    * @returns Promise with invoices array
    */
   async getInvoices(): Promise<{ data: Invoice[] | null; meta: ResponseMeta }> {
-    return this.request<Invoice[]>('/api/billing/invoices');
+    // Call Next.js API route (not backend)
+    const url = typeof window !== 'undefined' ? '/api/billing/invoices' : `${this.baseUrl}/api/billing/invoices`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      return { data: null, meta: { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
+    }
+    
+    const json = await response.json();
+    return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
 }
 

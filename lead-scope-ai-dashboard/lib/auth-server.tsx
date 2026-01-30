@@ -4,7 +4,7 @@
  */
 
 import { getServerUser } from './auth'
-import type { User } from './types'
+import type { User, PlanId } from './types'
 
 /**
  * Get current user in a Server Component
@@ -64,7 +64,7 @@ export async function requireAuth(): Promise<User> {
  * }
  * ```
  */
-export async function getUserPlan(): Promise<'demo' | 'starter' | 'pro'> {
+export async function getUserPlan(): Promise<PlanId> {
   const user = await getServerUser()
   return user?.plan || 'demo'
 }

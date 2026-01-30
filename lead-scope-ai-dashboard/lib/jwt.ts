@@ -6,7 +6,7 @@
  */
 
 import * as jose from 'jose'
-import type { User } from './types'
+import type { User, PlanId } from './types'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 const JWT_TTL_MINUTES = 30
@@ -49,21 +49,24 @@ export async function generateJWT(user: User): Promise<string> {
 export async function decodeJWT(token: string): Promise<{
   id: string
   email: string
-  plan: 'demo' | 'starter' | 'pro'
+  plan: PlanId
 } | null> {
   try {
     // Decode without verification – for read-only scenarios
     const payload = jose.decodeJwt(token)
     
+    const validPlans: PlanId[] = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
+    
     if (
       typeof payload.id === 'string' &&
       typeof payload.email === 'string' &&
-      (payload.plan === 'demo' || payload.plan === 'starter' || payload.plan === 'pro')
+      typeof payload.plan === 'string' &&
+      validPlans.includes(payload.plan as PlanId)
     ) {
       return {
         id: payload.id,
         email: payload.email,
-        plan: payload.plan,
+        plan: payload.plan as PlanId,
       }
     }
     
@@ -80,7 +83,7 @@ export async function decodeJWT(token: string): Promise<{
 export async function verifyJWT(token: string): Promise<{
   id: string
   email: string
-  plan: 'demo' | 'starter' | 'pro'
+  plan: PlanId
 } | null> {
   try {
     const secret = getJWTSecret()
@@ -88,15 +91,18 @@ export async function verifyJWT(token: string): Promise<{
       algorithms: ['HS256'],
     })
 
+    const validPlans: PlanId[] = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
+
     if (
       typeof payload.id === 'string' &&
       typeof payload.email === 'string' &&
-      (payload.plan === 'demo' || payload.plan === 'starter' || payload.plan === 'pro')
+      typeof payload.plan === 'string' &&
+      validPlans.includes(payload.plan as PlanId)
     ) {
       return {
         id: payload.id,
         email: payload.email,
-        plan: payload.plan,
+        plan: payload.plan as PlanId,
       }
     }
 

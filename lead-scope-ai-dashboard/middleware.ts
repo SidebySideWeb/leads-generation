@@ -13,6 +13,17 @@ import { workerGuard, isInternalRoute } from './lib/worker-guard'
  */
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+  const hostname = request.nextUrl.hostname
+
+  // Handle Vercel redirect: leadscope.gr -> www.leadscope.gr
+  // This prevents cookie issues and redirect loops
+  // Cookie is set with domain '.leadscope.gr' which works for both, but we want consistency
+  if (hostname === 'leadscope.gr') {
+    const url = request.nextUrl.clone()
+    url.hostname = 'www.leadscope.gr'
+    console.log(`[Middleware] Redirecting ${hostname} to www.leadscope.gr for ${pathname}`)
+    return NextResponse.redirect(url, 301) // Permanent redirect
+  }
 
   // 1. Protect worker/internal routes first (highest priority)
   if (isInternalRoute(pathname)) {

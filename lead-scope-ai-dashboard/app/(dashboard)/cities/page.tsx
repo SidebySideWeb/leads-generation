@@ -179,13 +179,13 @@ export default function CitiesPage() {
                   <div>
                     <p className="text-muted-foreground">Latitude</p>
                     <p className="font-medium text-foreground">
-                      {city.latitude ? city.latitude.toFixed(4) : "—"}
+                      {city.latitude != null ? Number(city.latitude).toFixed(4) : "—"}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-muted-foreground">Longitude</p>
                     <p className="font-medium text-foreground">
-                      {city.longitude ? city.longitude.toFixed(4) : "—"}
+                      {city.longitude != null ? Number(city.longitude).toFixed(4) : "—"}
                     </p>
                   </div>
                 </div>

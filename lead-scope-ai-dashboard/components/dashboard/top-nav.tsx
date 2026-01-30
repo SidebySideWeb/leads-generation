@@ -68,7 +68,17 @@ export function TopNav() {
 
   const userEmail = user?.email || 'Loading...'
   const userPlan = user?.plan || 'demo'
-  const planLabel = userPlan === 'pro' ? 'Professional' : userPlan === 'starter' ? 'Starter' : 'Snapshot'
+  
+  // Map plan IDs to display labels
+  const planLabels: Record<string, string> = {
+    'demo': 'Demo',
+    'starter': 'Starter',
+    'pro': 'Professional',
+    'snapshot': 'Snapshot',
+    'professional': 'Professional',
+    'agency': 'Agency',
+  }
+  const planLabel = planLabels[userPlan] || 'Demo'
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between h-14 px-4 lg:px-6 bg-background border-b border-border">

@@ -106,7 +106,7 @@ export default function DiscoverPage() {
         cityId: Number.parseInt(selectedCity, 10),
       })
 
-      if (!response.data) {
+      if (!response.data && response.meta.gate_reason) {
         toast({
           title: "Discovery failed",
           description: response.meta.gate_reason || "Failed to start discovery",
@@ -115,11 +115,17 @@ export default function DiscoverPage() {
         return
       }
 
+      // Discovery is running asynchronously
       toast({
         title: "Discovery started",
-        description: `Found ${response.data.length} businesses`,
+        description: response.meta.message || "Finding businesses based on your criteria. This may take a few moments.",
       })
-      router.push(`/datasets`)
+      
+      // Redirect to datasets page after a short delay
+      // The discovery is running in the background and will populate the dataset
+      setTimeout(() => {
+        router.push(`/datasets`)
+      }, 1500)
     } catch (error) {
       if (error instanceof NetworkError) {
         toast({

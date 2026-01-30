@@ -64,7 +64,9 @@ export async function getServerUser(request?: { headers: { get: (name: string) =
 
     // Return user object (use token data, which may have been updated)
     // Re-verify in case token was regenerated
-    const finalToken = cookieStore.get(COOKIE_NAME)?.value || token
+    // Re-read cookie store to get potentially updated token
+    const finalCookieStore = await cookies()
+    const finalToken = finalCookieStore.get(COOKIE_NAME)?.value || token
     const finalData = await verifyJWT(finalToken)
     
     if (!finalData) {

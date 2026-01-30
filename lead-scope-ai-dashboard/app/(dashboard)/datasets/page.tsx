@@ -63,12 +63,23 @@ export default async function DatasetsPage() {
   let networkError: string | null = null
 
   try {
+    console.log('[DatasetsPage] Fetching datasets from API...')
     const response = await api.getDatasets()
+    console.log('[DatasetsPage] API response:', { 
+      hasData: !!response.data, 
+      dataLength: response.data?.length || 0,
+      meta: response.meta 
+    })
+    
     if (response.data) {
       datasets = response.data
+      console.log('[DatasetsPage] Loaded datasets:', datasets.length)
+    } else {
+      console.log('[DatasetsPage] No datasets in response')
     }
     meta = response.meta
   } catch (error) {
+    console.error('[DatasetsPage] Error loading datasets:', error)
     if (error instanceof NetworkError) {
       networkError = error.message
     } else {

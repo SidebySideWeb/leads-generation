@@ -46,6 +46,7 @@ export const POST = withGuard(async (request: GuardedRequest) => {
 
     // Use user.id from guard (never trust client payload)
     const userId = user.id
+    // Remove userId from body if present - we use authenticated user ID
 
     const plan = plans[planId as keyof typeof plans]
     if (!plan) {
@@ -79,8 +80,8 @@ export const POST = withGuard(async (request: GuardedRequest) => {
         },
       ],
       mode: planId === 'snapshot' ? 'payment' : 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/(dashboard)/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/(dashboard)/billing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/billing?canceled=true`,
       client_reference_id: userId,
       metadata: {
         planId,

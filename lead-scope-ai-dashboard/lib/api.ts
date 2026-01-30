@@ -7,7 +7,7 @@
  * structure. The UI should never detect or depend on storage mode.
  */
 
-import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry, City, User } from './types';
+import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry, City, User, Subscription, UsageData, Invoice } from './types';
 
 /**
  * API client configuration
@@ -67,6 +67,7 @@ class ApiClient {
     }
 
     try {
+      console.log('[API] Making request to:', url, 'with credentials: include')
       const response = await fetch(url, {
         ...options,
         signal: controller?.signal,
@@ -76,6 +77,8 @@ class ApiClient {
           ...options.headers,
         },
       });
+      
+      console.log('[API] Response status:', response.status, response.statusText)
 
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -238,7 +241,14 @@ class ApiClient {
    * @returns Promise with datasets array and metadata
    */
   async getDatasets(): Promise<{ data: Dataset[] | null; meta: ResponseMeta }> {
-    return this.request<Dataset[]>('/datasets');
+    console.log('[API] getDatasets() called, baseUrl:', this.baseUrl)
+    const result = await this.request<Dataset[]>('/datasets');
+    console.log('[API] getDatasets() response:', { 
+      hasData: !!result.data, 
+      dataLength: result.data?.length || 0,
+      meta: result.meta 
+    })
+    return result;
   }
 
   /**
@@ -423,15 +433,45 @@ class ApiClient {
   /**
    * Create Stripe checkout session
    * @param planId - Plan ID (snapshot, professional, agency)
-   * @param userId - User ID
+   * @param userId - User ID (not used, authenticated user ID is used server-side)
    * @returns Promise with checkout session URL
    */
   async createCheckoutSession(planId: string, userId: string): Promise<{ data: { sessionId: string; url: string } | null; meta: ResponseMeta }> {
-    // Base URL already includes `/api`, so the endpoint here is `/checkout`
-    return this.request<{ sessionId: string; url: string }>('/checkout', {
+    // Call Next.js API route (not backend) - it handles Stripe checkout
+    const url = typeof window !== 'undefined' ? '/api/checkout' : `${this.baseUrl}/api/checkout`;
+    const response = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ planId, userId }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ planId }),
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to create checkout session' }));
+      return {
+        data: null,
+        meta: {
+          plan_id: 'demo',
+          gated: false,
+          total_available: 0,
+          total_returned: 0,
+          gate_reason: error.error || 'Failed to create checkout session',
+        },
+      };
+    }
+
+    const json = await response.json();
+    return {
+      data: json,
+      meta: {
+        plan_id: 'demo',
+        gated: false,
+        total_available: 1,
+        total_returned: 1,
+      },
+    };
   }
 
   /**
@@ -534,6 +574,30 @@ class ApiClient {
    */
   async getCurrentUser(): Promise<{ data: User | null; meta: ResponseMeta }> {
     return this.request<User>('/api/auth/me');
+  }
+
+  /**
+   * Get current subscription information
+   * @returns Promise with subscription data
+   */
+  async getSubscription(): Promise<{ data: Subscription | null; meta: ResponseMeta }> {
+    return this.request<Subscription>('/api/billing/subscription');
+  }
+
+  /**
+   * Get usage data for current user
+   * @returns Promise with usage data
+   */
+  async getUsage(): Promise<{ data: UsageData | null; meta: ResponseMeta }> {
+    return this.request<UsageData>('/api/billing/usage');
+  }
+
+  /**
+   * Get invoice history
+   * @returns Promise with invoices array
+   */
+  async getInvoices(): Promise<{ data: Invoice[] | null; meta: ResponseMeta }> {
+    return this.request<Invoice[]>('/api/billing/invoices');
   }
 }
 

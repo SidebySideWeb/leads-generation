@@ -1,9 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { api } from "@/lib/api"
+import type { User } from "@/lib/types"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +45,25 @@ const mobileNavItems = [
 
 export function TopNav() {
   const pathname = usePathname()
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const response = await api.getCurrentUser()
+        if (response.data) {
+          setUser(response.data)
+        }
+      } catch (error) {
+        console.error('[TopNav] Failed to load user:', error)
+      }
+    }
+    loadUser()
+  }, [])
+
+  const userEmail = user?.email || 'Loading...'
+  const userPlan = user?.plan || 'demo'
+  const planLabel = userPlan === 'pro' ? 'Professional' : userPlan === 'starter' ? 'Starter' : 'Snapshot'
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between h-14 px-4 lg:px-6 bg-background border-b border-border">
@@ -124,8 +146,8 @@ export function TopNav() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">john@example.com</p>
-              <p className="text-xs text-muted-foreground">Professional Plan</p>
+              <p className="text-sm font-medium">{userEmail}</p>
+              <p className="text-xs text-muted-foreground">{planLabel} Plan</p>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

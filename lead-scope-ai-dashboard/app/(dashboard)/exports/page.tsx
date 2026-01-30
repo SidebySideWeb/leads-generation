@@ -68,15 +68,42 @@ export default async function ExportsPage() {
     })
   }
 
-  // Calculate usage (this would come from API in production)
-  const usageStats = {
-    used: exports?.filter(e => {
-      const exportDate = new Date(e.created_at)
-      const now = new Date()
-      return exportDate.getMonth() === now.getMonth() && exportDate.getFullYear() === now.getFullYear()
-    }).length || 0,
-    limit: 10, // Would come from user plan
+  // Get usage data from API
+  let usageStats = {
+    used: 0,
+    limit: 10,
     period: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+  }
+
+  try {
+    const usageResponse = await api.getUsage()
+    if (usageResponse.data) {
+      // Get plan limits based on user plan
+      const userResponse = await api.getCurrentUser()
+      const userPlan = userResponse.data?.plan || 'demo'
+      const planLimits: Record<string, number> = {
+        demo: 10,
+        snapshot: 1,
+        professional: 5000,
+        agency: Infinity,
+      }
+      usageStats = {
+        used: usageResponse.data.exports_this_month,
+        limit: planLimits[userPlan] || 10,
+        period: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+      }
+    }
+  } catch (error) {
+    // Fallback to calculated usage
+    usageStats = {
+      used: exports?.filter(e => {
+        const exportDate = new Date(e.created_at)
+        const now = new Date()
+        return exportDate.getMonth() === now.getMonth() && exportDate.getFullYear() === now.getFullYear()
+      }).length || 0,
+      limit: 10,
+      period: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+    }
   }
 
   return (
@@ -124,11 +151,11 @@ export default async function ExportsPage() {
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all"
-                style={{ width: `${Math.min((usageStats.used / usageStats.limit) * 100, 100)}%` }}
+                style={{ width: `${usageStats.limit === Infinity ? 0 : Math.min((usageStats.used / usageStats.limit) * 100, 100)}%` }}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              {usageStats.limit - usageStats.used} exports remaining. Resets on the 1st of next month.
+              {usageStats.limit === Infinity ? 'Unlimited exports' : `${usageStats.limit - usageStats.used} exports remaining`}. Resets on the 1st of next month.
             </p>
           </div>
         </CardContent>

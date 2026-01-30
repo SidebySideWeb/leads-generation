@@ -4,7 +4,7 @@
  */
 
 // Canonical plan identifier shared across the frontend
-export type PlanId = 'demo' | 'starter' | 'pro';
+export type PlanId = 'demo' | 'starter' | 'pro' | 'snapshot' | 'professional' | 'agency';
 
 export interface User {
   id: string;
@@ -176,4 +176,47 @@ export interface ApiResponse<T> {
 export interface PaginatedResponse<T> {
   data: T[];
   meta: ResponseMeta;
+}
+
+/**
+ * Subscription information
+ */
+export interface Subscription {
+  id: string;
+  user_id: string;
+  plan: PlanId;
+  status: 'active' | 'canceled' | 'past_due' | 'trialing';
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Usage tracking data
+ */
+export interface UsageData {
+  user_id: string;
+  month_year: string;
+  exports_this_month: number;
+  crawls_this_month: number;
+  datasets_created_this_month: number;
+  updated_at: string;
+}
+
+/**
+ * Invoice information
+ */
+export interface Invoice {
+  id: string;
+  invoice_number: string;
+  date: string;
+  amount: number;
+  currency: string;
+  status: 'paid' | 'pending' | 'failed' | 'void';
+  download_url: string | null;
+  stripe_invoice_id: string | null;
 }

@@ -70,20 +70,59 @@ export default function SettingsPage() {
 
   const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    // Would call API to update profile
-    toast({
-      title: "Profile updated",
-      description: "Your profile has been updated successfully",
-    })
+    const formData = new FormData(e.currentTarget)
+    const firstName = formData.get('firstName') as string
+    const lastName = formData.get('lastName') as string
+    const email = formData.get('email') as string
+    const company = formData.get('company') as string
+
+    try {
+      // TODO: Call API to update profile
+      // await api.updateProfile({ firstName, lastName, email, company })
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    // Would call API to change password
-    toast({
-      title: "Password updated",
-      description: "Your password has been changed successfully",
-    })
+    const formData = new FormData(e.currentTarget)
+    const currentPassword = formData.get('currentPassword') as string
+    const newPassword = formData.get('newPassword') as string
+    const confirmPassword = formData.get('confirmPassword') as string
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      // TODO: Call API to change password
+      // await api.changePassword({ currentPassword, newPassword })
+      toast({
+        title: "Password updated",
+        description: "Your password has been changed successfully",
+      })
+      e.currentTarget.reset()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to change password. Please check your current password.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -109,20 +148,20 @@ export default function SettingsPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First name</Label>
-                <Input id="firstName" defaultValue={user?.name?.split(" ")[0] || ""} className="h-10" />
+                <Input id="firstName" name="firstName" defaultValue={user?.name?.split(" ")[0] || ""} className="h-10" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastName">Last name</Label>
-                <Input id="lastName" defaultValue={user?.name?.split(" ")[1] || ""} className="h-10" />
+                <Input id="lastName" name="lastName" defaultValue={user?.name?.split(" ")[1] || ""} className="h-10" />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email address</Label>
-              <Input id="email" type="email" defaultValue={user?.email || ""} className="h-10" />
+              <Input id="email" name="email" type="email" defaultValue={user?.email || ""} className="h-10" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="company">Company name</Label>
-              <Input id="company" placeholder="Optional" className="h-10" />
+              <Input id="company" name="company" placeholder="Optional" className="h-10" />
             </div>
             <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">
               Save Changes
@@ -147,6 +186,7 @@ export default function SettingsPage() {
               <div className="relative">
                 <Input
                   id="currentPassword"
+                  name="currentPassword"
                   type={showCurrentPassword ? "text" : "password"}
                   className="h-10 pr-10"
                 />
@@ -168,6 +208,7 @@ export default function SettingsPage() {
               <div className="relative">
                 <Input
                   id="newPassword"
+                  name="newPassword"
                   type={showNewPassword ? "text" : "password"}
                   className="h-10 pr-10"
                 />
@@ -189,7 +230,7 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm new password</Label>
-              <Input id="confirmPassword" type="password" className="h-10" />
+              <Input id="confirmPassword" name="confirmPassword" type="password" className="h-10" />
             </div>
             <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">
               Update Password

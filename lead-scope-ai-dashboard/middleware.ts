@@ -35,8 +35,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = request.cookies.get('token')?.value
-
   // Allow access to auth routes and public API routes (webhooks, auth endpoints)
   // Note: Route groups like (auth) don't appear in URLs, so check actual paths
   if (
@@ -48,25 +46,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Protect dashboard routes
-  // Note: Route groups like (dashboard) don't appear in URLs
-  // Cookie is set by backend API (api.leadscope.gr) with domain '.leadscope.gr'
-  // This makes it accessible to www.leadscope.gr middleware
-  // 
-  // IMPORTANT: We allow requests through even without token to avoid redirect loops.
-  // The page components (server components) will check auth and redirect if needed.
-  // This is necessary because:
-  // 1. Cross-domain cookies may have timing issues
-  // 2. Client components can't check cookies server-side
-  // 3. Server components can use getCurrentUser() which makes API calls to verify
+  // Dashboard routes - allow through without checking cookie
+  // Cookie checking is unreliable for cross-domain cookies (api.leadscope.gr -> www.leadscope.gr)
+  // The cookie is sent in request headers, but Next.js cookies() might not read it server-side
+  // Let page components handle auth via API calls (they'll redirect on 401/403)
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/datasets') || 
       pathname.startsWith('/discover') || pathname.startsWith('/exports') ||
       pathname.startsWith('/billing') || pathname.startsWith('/settings') ||
       pathname.startsWith('/cities') || pathname.startsWith('/industries') ||
       pathname.startsWith('/refresh')) {
-    // Allow request through - page components will handle auth
-    // Server components use getCurrentUser() which checks via API
-    // Client components will fail API calls and redirect via API client
+    // Always allow through - no redirect here
+    // Page components will handle auth checks
     return NextResponse.next()
   }
 

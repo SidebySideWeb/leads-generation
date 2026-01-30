@@ -10,7 +10,7 @@ import type { User } from './types'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 const JWT_TTL_MINUTES = 30
-const COOKIE_NAME = 'auth-token'
+const COOKIE_NAME = 'token' // Matches backend cookie name and middleware check
 
 /**
  * Get the JWT secret key for signing

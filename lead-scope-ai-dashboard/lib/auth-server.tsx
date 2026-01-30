@@ -9,6 +9,12 @@ import type { User } from './types'
 /**
  * Get current user in a Server Component
  * 
+ * Uses getServerUser() which reads from cookies.
+ * If cookie is not found, returns null (page should redirect to /login)
+ * 
+ * Note: Cookies set by api.leadscope.gr with domain '.leadscope.gr' should
+ * be accessible to www.leadscope.gr server-side via Next.js cookies()
+ * 
  * Usage:
  * ```tsx
  * export default async function MyPage() {

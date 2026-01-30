@@ -443,6 +443,8 @@ class ApiClient {
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
       const url = `${this.baseUrl}/api/auth/login`;
+      console.log('[API] Login request to:', url);
+      
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -452,26 +454,35 @@ class ApiClient {
         body: JSON.stringify({ email, password }),
       });
 
-      const json = await response.json().catch(() => ({}));
+      console.log('[API] Login response status:', response.status);
+      console.log('[API] Login response headers:', Object.fromEntries(response.headers.entries()));
+
+      const json = await response.json().catch((err) => {
+        console.error('[API] Failed to parse JSON response:', err);
+        return {};
+      });
 
       if (!response.ok) {
         const message =
           json?.error ||
           json?.message ||
           `Login failed with status ${response.status}`;
+        console.error('[API] Login failed:', message);
         return {
           data: null,
           error: { message },
         };
       }
 
+      console.log('[API] Login successful');
       return {
         data: null,
       };
-    } catch {
+    } catch (error) {
+      console.error('[API] Login network error:', error);
       return {
         data: null,
-        error: { message: 'Network error. Please try again.' },
+        error: { message: error instanceof Error ? error.message : 'Network error. Please try again.' },
       };
     }
   }

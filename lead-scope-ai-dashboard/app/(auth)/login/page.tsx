@@ -22,13 +22,15 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
 
+    console.log('[Login Page] Form submitted with email:', email)
+
     try {
       const response = await api.login(email, password)
       
-      console.log('Login response:', response)
+      console.log('[Login Page] Login response:', response)
       
       if (response.error) {
-        console.error('Login error:', response.error)
+        console.error('[Login Page] Login error:', response.error)
         toast({
           title: "Login failed",
           description: response.error.message,
@@ -38,19 +40,21 @@ export default function LoginPage() {
         return
       }
 
+      console.log('[Login Page] Login successful, redirecting to /datasets')
       toast({
         title: "Login successful",
         description: "Redirecting to dashboard...",
       })
 
+      // Add a small delay to ensure cookie is set before redirect
       await new Promise(resolve => setTimeout(resolve, 500))
       
       window.location.href = "/datasets"
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('[Login Page] Unexpected error:', error)
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
       setLoading(false)

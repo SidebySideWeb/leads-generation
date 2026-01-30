@@ -29,6 +29,7 @@ export interface ResponseMeta {
   total_available: number;
   total_returned: number;
   upgrade_hint?: string;
+  message?: string; // Optional message for user feedback (e.g., "Discovery started...")
 }
 
 /**

@@ -9,7 +9,7 @@ const pool = new Pool({
  * GET /api/cities
  * Get cities, optionally filtered by country (public endpoint - no auth required)
  */
-export const GET = async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const country = searchParams.get('country')
@@ -74,4 +74,4 @@ export const GET = async (request: NextRequest) => {
       { status: 500 }
     )
   }
-})
+}

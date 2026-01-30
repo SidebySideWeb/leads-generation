@@ -98,18 +98,35 @@ export default function DiscoverPage() {
       return
     }
 
+    // Validate that we have valid numeric IDs
+    const industryId = Number.parseInt(selectedIndustry, 10)
+    const cityId = Number.parseInt(selectedCity, 10)
+
+    if (isNaN(industryId) || isNaN(cityId)) {
+      toast({
+        title: "Invalid selection",
+        description: "Please select valid industry and city",
+        variant: "destructive",
+      })
+      return
+    }
+
     setLoading(true)
 
     try {
+      console.log('[Discover] Sending discovery request:', { industryId, cityId })
       const response = await api.discoverBusinesses({
-        industryId: Number.parseInt(selectedIndustry, 10),
-        cityId: Number.parseInt(selectedCity, 10),
+        industryId,
+        cityId,
       })
 
-      if (!response.data && response.meta.gate_reason) {
+      // Check for errors first
+      if (!response.data) {
+        const errorMessage = response.meta.gate_reason || response.meta.message || "Failed to start discovery"
+        console.error('[Discover] Discovery failed:', errorMessage, response.meta)
         toast({
           title: "Discovery failed",
-          description: response.meta.gate_reason || "Failed to start discovery",
+          description: errorMessage,
           variant: "destructive",
         })
         return

@@ -105,11 +105,13 @@ class ApiClient {
 
       // HTTP errors (4xx, 5xx) are not network errors - return them with meta
       if (!response.ok) {
-        let errorData: { message?: string; meta?: ResponseMeta } = {};
+        let errorData: { message?: string; meta?: ResponseMeta; error?: string } = {};
         try {
           errorData = await response.json();
-        } catch {
+          console.log('[API] Error response:', response.status, errorData);
+        } catch (e) {
           // If response is not JSON, create default error structure
+          console.error('[API] Failed to parse error response:', e);
           errorData = { 
             message: `HTTP ${response.status}: ${response.statusText}`,
             meta: {
@@ -123,14 +125,18 @@ class ApiClient {
 
         // Return error response with meta
         // Data will be null/undefined, but meta is always present
+        // Use gate_reason from meta if available, otherwise use error message
+        const errorMeta = errorData.meta || {
+          plan_id: 'demo',
+          gated: false,
+          total_available: 0,
+          total_returned: 0,
+          gate_reason: errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+        };
+
         return {
           data: (null as unknown) as T,
-          meta: errorData.meta || {
-            plan_id: 'demo',
-            gated: false,
-            total_available: 0,
-            total_returned: 0,
-          },
+          meta: errorMeta,
         };
       }
 
@@ -185,10 +191,29 @@ class ApiClient {
     cityId: number;
     datasetId?: string;
   }): Promise<{ data: Business[] | null; meta: ResponseMeta }> {
-    return this.request<Business[]>('/discovery/businesses', {
+    // Validate input before sending
+    if (isNaN(input.industryId) || isNaN(input.cityId)) {
+      console.error('[API] Invalid discovery input:', input);
+      return {
+        data: null,
+        meta: {
+          plan_id: 'demo',
+          gated: false,
+          total_available: 0,
+          total_returned: 0,
+          gate_reason: 'Invalid industryId or cityId: must be valid numbers',
+        },
+      };
+    }
+
+    console.log('[API] discoverBusinesses called with:', input);
+    console.log('[API] Request body will be:', JSON.stringify(input));
+    const result = await this.request<Business[]>('/discovery/businesses', {
       method: 'POST',
       body: JSON.stringify(input),
     });
+    console.log('[API] discoverBusinesses response:', result);
+    return result;
   }
 
   /**
@@ -496,6 +521,7 @@ class ApiClient {
   async createCheckoutSession(planId: string, userId: string): Promise<{ data: { sessionId: string; url: string } | null; meta: ResponseMeta }> {
     // Call Next.js API route (not backend) - it handles Stripe checkout
     const url = typeof window !== 'undefined' ? '/api/checkout' : `${this.baseUrl}/api/checkout`;
+    console.log('[API] Creating checkout session for plan:', planId);
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -505,8 +531,20 @@ class ApiClient {
       body: JSON.stringify({ planId }),
     });
 
+    console.log('[API] Checkout response status:', response.status);
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to create checkout session' }));
+      let errorMessage = 'Failed to create checkout session';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || error.message || errorMessage;
+        console.error('[API] Checkout error:', error);
+      } catch (e) {
+        // If response is not JSON, use status text
+        errorMessage = response.status === 503 
+          ? 'Payment processing is not available. Please contact support.'
+          : `HTTP ${response.status}: ${response.statusText}`;
+      }
       return {
         data: null,
         meta: {
@@ -514,7 +552,7 @@ class ApiClient {
           gated: false,
           total_available: 0,
           total_returned: 0,
-          gate_reason: error.error || 'Failed to create checkout session',
+          gate_reason: errorMessage,
         },
       };
     }

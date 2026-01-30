@@ -18,18 +18,18 @@ const pool = new Pool({
 
 /**
  * Get user's current plan from database
+ * Checks users table directly (plan is stored there)
  */
-async function getUserPlanFromDB(userId: string): Promise<'demo' | 'starter' | 'pro'> {
+async function getUserPlanFromDB(userId: string): Promise<'demo' | 'starter' | 'pro' | 'snapshot' | 'professional' | 'agency'> {
   try {
-    const result = await pool.query<{ plan: 'demo' | 'starter' | 'pro' }>(
-      `SELECT plan FROM subscriptions
-       WHERE user_id = $1
-         AND status IN ('active', 'trialing')
-       ORDER BY created_at DESC
-       LIMIT 1`,
+    const result = await pool.query<{ plan: string }>(
+      `SELECT plan FROM users WHERE id = $1`,
       [userId]
     )
-    return result.rows[0]?.plan || 'demo'
+    const plan = result.rows[0]?.plan || 'demo'
+    // Validate plan is one of the allowed values
+    const validPlans = ['demo', 'starter', 'pro', 'snapshot', 'professional', 'agency']
+    return (validPlans.includes(plan) ? plan : 'demo') as 'demo' | 'starter' | 'pro' | 'snapshot' | 'professional' | 'agency'
   } catch (error) {
     console.error('[getUserPlanFromDB] Error:', error)
     return 'demo'

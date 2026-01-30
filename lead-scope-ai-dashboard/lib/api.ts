@@ -728,6 +728,29 @@ class ApiClient {
     const json = await response.json();
     return { data: json.data || null, meta: json.meta || { plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 } };
   }
+
+  /**
+   * Get discovery runs for a dataset
+   * @param datasetId - Dataset UUID
+   * @returns Promise with discovery runs and metadata
+   */
+  async getDiscoveryRuns(datasetId: string): Promise<{ 
+    data: Array<{
+      id: string;
+      status: 'running' | 'completed' | 'failed';
+      created_at: string;
+      completed_at: string | null;
+    }> | null; 
+    meta: ResponseMeta 
+  }> {
+    // Call backend directly (backend route is /refresh?dataset_id=...)
+    return this.request<Array<{
+      id: string;
+      status: 'running' | 'completed' | 'failed';
+      created_at: string;
+      completed_at: string | null;
+    }>>(`/refresh?dataset_id=${datasetId}`);
+  }
 }
 
 // Export singleton instance

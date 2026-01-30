@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -68,13 +68,26 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
   const crawlCheck = canPerformAction(permissions, 'crawl')
   // Note: We don't block the action, just show visual state
 
-  const loadCrawlStatus = async () => {
+  const [discoveryRuns, setDiscoveryRuns] = useState<Array<{
+    id: string;
+    status: 'running' | 'completed' | 'failed';
+    created_at: string;
+    completed_at: string | null;
+  }>>([])
+
+  const loadCrawlStatus = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const response = await api.getCrawlStatus(datasetId)
+      // Load discovery runs (orchestration layer)
+      const discoveryResponse = await api.getDiscoveryRuns(datasetId)
+      if (discoveryResponse.data) {
+        setDiscoveryRuns(discoveryResponse.data)
+      }
       
+      // Also load crawl jobs for backward compatibility
+      const response = await api.getCrawlStatus(datasetId)
       if (response.data) {
         setCrawlJobs(response.data)
       }
@@ -83,12 +96,12 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
       if (err instanceof NetworkError) {
         setError(err.message)
       } else {
-        setError('Failed to load crawl status')
+        setError('Failed to load status')
       }
     } finally {
       setLoading(false)
     }
-  }
+  }, [datasetId])
 
   const handleStartCrawl = async () => {
     setStarting(true)
@@ -139,8 +152,24 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
 
   useEffect(() => {
     loadCrawlStatus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId])
+  }, [loadCrawlStatus])
+
+  // Poll for updates if there's a running discovery run
+  useEffect(() => {
+    const hasRunningDiscovery = discoveryRuns.some(run => run.status === 'running')
+    
+    if (!hasRunningDiscovery) {
+      return // No polling needed
+    }
+    
+    const pollInterval = setInterval(() => {
+      loadCrawlStatus()
+    }, 5000) // Poll every 5 seconds
+    
+    return () => {
+      clearInterval(pollInterval)
+    }
+  }, [discoveryRuns, loadCrawlStatus])
 
   const latestJob = crawlJobs.length > 0 ? crawlJobs[0] : null
   const hasRunningJob = crawlJobs.some(job => job.status === 'running' || job.status === 'queued')
@@ -151,9 +180,9 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-card-foreground">Crawl Status</CardTitle>
+            <CardTitle className="text-card-foreground">Discovery & Crawl Status</CardTitle>
             <CardDescription>
-              Monitor website crawling progress and page limits
+              Monitor discovery runs and website crawling progress
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -215,18 +244,52 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
 
         {meta.gated && <GateBanner meta={meta} />}
 
-        {loading && crawlJobs.length === 0 ? (
+        {/* Discovery Runs Section */}
+        {discoveryRuns.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-foreground">Discovery Runs</h4>
+            {discoveryRuns.map((run) => {
+              const StatusIcon = statusConfig[run.status === 'running' ? 'running' : run.status === 'completed' ? 'completed' : 'failed'].icon
+              const isRunning = run.status === 'running'
+
+              return (
+                <div key={run.id} className="p-4 bg-muted/30 rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      variant="outline"
+                      className={cn("flex items-center gap-1", statusConfig[run.status === 'running' ? 'running' : run.status === 'completed' ? 'completed' : 'failed'].className)}
+                    >
+                      <StatusIcon className={cn("w-3 h-3", isRunning && "animate-spin")} />
+                      {run.status === 'running' ? 'Running' : run.status === 'completed' ? 'Completed' : 'Failed'}
+                    </Badge>
+                    <div className="text-xs text-muted-foreground">
+                      Created: {new Date(run.created_at).toLocaleString()}
+                      {run.completed_at && (
+                        <> • Completed: {new Date(run.completed_at).toLocaleString()}</>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {loading && crawlJobs.length === 0 && discoveryRuns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-            <p>Loading crawl status...</p>
+            <p>Loading status...</p>
           </div>
-        ) : crawlJobs.length === 0 ? (
+        ) : crawlJobs.length === 0 && discoveryRuns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>No crawl jobs yet</p>
-            <p className="text-xs mt-1">Click "Start Crawl" to begin crawling websites</p>
+            <p>No discovery runs or crawl jobs yet</p>
+            <p className="text-xs mt-1">Start a discovery or crawl to see status</p>
           </div>
         ) : (
           <div className="space-y-4">
+            {discoveryRuns.length > 0 && (
+              <h4 className="text-sm font-medium text-foreground">Crawl Jobs</h4>
+            )}
             {/* Always show all jobs, even if partial/incomplete - never hide partial results */}
             {crawlJobs.map((job) => {
               const StatusIcon = statusConfig[job.status].icon

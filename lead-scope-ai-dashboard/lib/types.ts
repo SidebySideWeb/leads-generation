@@ -91,6 +91,19 @@ export interface CrawlJob {
 }
 
 /**
+ * ExtractionJob type matching backend response
+ */
+export interface ExtractionJob {
+  id: string;
+  business_id: number;
+  status: 'pending' | 'running' | 'success' | 'failed';
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/**
  * ExportResult type matching backend response
  * Enhanced with rows_returned, rows_total, gated, upgrade_hint
  */

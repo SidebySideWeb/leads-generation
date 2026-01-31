@@ -410,15 +410,29 @@ export default function DatasetDetailPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {business.crawl?.emailsCount ? (
-                          <span className="font-medium">{business.crawl.emailsCount}</span>
+                        {business.email ? (
+                          <a 
+                            href={`mailto:${business.email}`}
+                            className="text-primary hover:underline"
+                          >
+                            {business.email}
+                          </a>
+                        ) : business.crawl?.emailsCount ? (
+                          <span className="font-medium">{business.crawl.emailsCount} found</span>
                         ) : (
                           "—"
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {business.crawl?.phonesCount ? (
-                          <span className="font-medium">{business.crawl.phonesCount}</span>
+                        {business.phone ? (
+                          <a 
+                            href={`tel:${business.phone}`}
+                            className="text-primary hover:underline"
+                          >
+                            {business.phone}
+                          </a>
+                        ) : business.crawl?.phonesCount ? (
+                          <span className="font-medium">{business.crawl.phonesCount} found</span>
                         ) : (
                           "—"
                         )}

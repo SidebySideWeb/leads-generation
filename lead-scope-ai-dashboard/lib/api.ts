@@ -751,6 +751,41 @@ class ApiClient {
       completed_at: string | null;
     }>>(`/refresh?dataset_id=${datasetId}`);
   }
+
+  /**
+   * Get extraction jobs for a dataset or discovery run
+   * @param params - Query parameters (datasetId or discoveryRunId)
+   * @returns Promise with extraction jobs and metadata
+   */
+  async getExtractionJobs(params: {
+    datasetId?: string;
+    discoveryRunId?: string;
+  }): Promise<{ 
+    data: Array<{
+      id: string;
+      business_id: number;
+      status: 'pending' | 'running' | 'success' | 'failed';
+      error_message: string | null;
+      created_at: string;
+      started_at: string | null;
+      completed_at: string | null;
+    }> | null; 
+    meta: ResponseMeta 
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params.datasetId) queryParams.set('datasetId', params.datasetId);
+    if (params.discoveryRunId) queryParams.set('discoveryRunId', params.discoveryRunId);
+    
+    return this.request<Array<{
+      id: string;
+      business_id: number;
+      status: 'pending' | 'running' | 'success' | 'failed';
+      error_message: string | null;
+      created_at: string;
+      started_at: string | null;
+      completed_at: string | null;
+    }>>(`/extraction-jobs?${queryParams.toString()}`);
+  }
 }
 
 // Export singleton instance

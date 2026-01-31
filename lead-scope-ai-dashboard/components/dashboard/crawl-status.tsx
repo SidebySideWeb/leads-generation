@@ -18,7 +18,7 @@ import {
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import type { CrawlJob, ResponseMeta } from "@/lib/types"
+import type { CrawlJob, ExtractionJob, ResponseMeta } from "@/lib/types"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { usePermissions } from "@/contexts/PermissionsContext"
 import { canPerformAction } from "@/lib/permissions"
@@ -74,6 +74,7 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
     created_at: string;
     completed_at: string | null;
   }>>([])
+  const [extractionJobs, setExtractionJobs] = useState<ExtractionJob[]>([])
 
   const loadCrawlStatus = useCallback(async () => {
     setLoading(true)
@@ -84,6 +85,29 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
       const discoveryResponse = await api.getDiscoveryRuns(datasetId)
       if (discoveryResponse.data) {
         setDiscoveryRuns(discoveryResponse.data)
+        
+        // Load extraction jobs for the latest running discovery run
+        const runningRun = discoveryResponse.data.find(run => run.status === 'running')
+        if (runningRun) {
+          try {
+            const extractionResponse = await api.getExtractionJobs({ discoveryRunId: runningRun.id })
+            if (extractionResponse.data) {
+              setExtractionJobs(extractionResponse.data)
+            }
+          } catch (err) {
+            console.error('Failed to load extraction jobs:', err)
+          }
+        } else {
+          // Load all extraction jobs for this dataset
+          try {
+            const extractionResponse = await api.getExtractionJobs({ datasetId })
+            if (extractionResponse.data) {
+              setExtractionJobs(extractionResponse.data)
+            }
+          } catch (err) {
+            console.error('Failed to load extraction jobs:', err)
+          }
+        }
       }
       
       // Also load crawl jobs for backward compatibility
@@ -266,9 +290,19 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
             {discoveryRuns.map((run) => {
               const StatusIcon = statusConfig[run.status === 'running' ? 'running' : run.status === 'completed' ? 'completed' : 'failed'].icon
               const isRunning = run.status === 'running'
+              const runExtractionJobs = extractionJobs.filter(job => {
+                // Filter extraction jobs for this discovery run
+                // We need to check if the job's business belongs to this discovery run
+                // For now, show all extraction jobs if this is the latest run
+                return discoveryRuns[0]?.id === run.id
+              })
+              const pendingJobs = runExtractionJobs.filter(j => j.status === 'pending' || j.status === 'running').length
+              const completedJobs = runExtractionJobs.filter(j => j.status === 'success').length
+              const failedJobs = runExtractionJobs.filter(j => j.status === 'failed').length
+              const totalJobs = runExtractionJobs.length
 
               return (
-                <div key={run.id} className="p-4 bg-muted/30 rounded-lg border border-border">
+                <div key={run.id} className="p-4 bg-muted/30 rounded-lg border border-border space-y-3">
                   <div className="flex items-center justify-between">
                     <Badge
                       variant="outline"
@@ -284,6 +318,25 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
                       )}
                     </div>
                   </div>
+                  
+                  {/* Extraction Jobs Summary */}
+                  {totalJobs > 0 && (
+                    <div className="pt-2 border-t border-border">
+                      <div className="text-xs font-medium text-foreground mb-2">Extraction Jobs</div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>Total: {totalJobs}</span>
+                        {pendingJobs > 0 && <span className="text-primary">Pending: {pendingJobs}</span>}
+                        {completedJobs > 0 && <span className="text-success">Completed: {completedJobs}</span>}
+                        {failedJobs > 0 && <span className="text-destructive">Failed: {failedJobs}</span>}
+                      </div>
+                      {totalJobs > 0 && (
+                        <Progress 
+                          value={totalJobs > 0 ? ((completedJobs + failedJobs) / totalJobs) * 100 : 0} 
+                          className="h-2 mt-2" 
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

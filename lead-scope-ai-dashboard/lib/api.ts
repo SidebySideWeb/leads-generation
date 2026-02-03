@@ -18,19 +18,22 @@ import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry,
  * Local dev: http://localhost:3000 (backend port)
  */
 const getBaseUrl = (): string => {
-  // Always use backend URL
+  // NEXT_PUBLIC_* env vars are available on both client and server in Next.js
+  // Check for it first (works in both contexts)
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // Default to production backend
+  
+  // Fallback: Default to production backend on client-side
   if (typeof window !== 'undefined') {
-    // Client-side: use production backend
+    // Client-side: use production backend if no env var set
     return 'https://api.leadscope.gr';
   }
+  
   // Server-side: use local backend in dev, production in prod
   return process.env.NODE_ENV === 'production' 
     ? 'https://api.leadscope.gr'
-    : 'http://localhost:3000';
+    : 'http://localhost:3001'; // Changed to 3001 to avoid conflict with Next.js on 3000
 };
 
 /**

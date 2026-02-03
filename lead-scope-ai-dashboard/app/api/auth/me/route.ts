@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
       (process.env.NODE_ENV === 'production' 
         ? 'https://api.leadscope.gr'
-        : 'http://localhost:3000')
+        : 'http://localhost:3001')
     
     const backendUrl = `${API_BASE_URL}/api/auth/me`
     console.log('[auth/me] Proxying request to backend:', backendUrl)
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
           gated: false,
           total_available: 0,
           total_returned: 0,
-          gate_reason: `Failed to connect to backend: ${error.message || 'Unknown error'}. Backend URL: ${process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.leadscope.gr' : 'http://localhost:3000')}`,
+          gate_reason: `Failed to connect to backend: ${error.message || 'Unknown error'}. Backend URL: ${process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.leadscope.gr' : 'http://localhost:3001')}`,
         },
       },
       { status: 503 }

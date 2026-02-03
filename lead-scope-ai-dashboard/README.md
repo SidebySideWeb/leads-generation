@@ -54,12 +54,19 @@ hooks/
    ```
 
 2. **Set up environment variables:**
-   Create `.env.local`:
+   Create `.env.local` in the `lead-scope-ai-dashboard` directory:
    ```env
-   NEXT_PUBLIC_API_URL=http://localhost:3000/api
+   # Backend API URL (backend runs on port 3001 to avoid conflict with Next.js on 3000)
+   NEXT_PUBLIC_API_URL=http://localhost:3001
+   
+   # Frontend app URL
    NEXT_PUBLIC_APP_URL=http://localhost:3000
+   
+   # Optional: Enable analytics
    NEXT_PUBLIC_ENABLE_ANALYTICS=false
    ```
+   
+   **Important:** Make sure the backend is running on port 3001 (or update the port in `.env.local` to match your backend port).
 
 3. **Run development server:**
    ```bash

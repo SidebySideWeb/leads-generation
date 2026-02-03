@@ -15,7 +15,7 @@ import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry,
  * All API calls go directly to backend: https://api.leadscope.gr
  * 
  * Production: https://api.leadscope.gr
- * Local dev: http://localhost:3001 (backend port)
+ * Local dev: http://localhost:3000 (backend port)
  */
 const getBaseUrl = (): string => {
   // Always use backend URL
@@ -30,7 +30,7 @@ const getBaseUrl = (): string => {
   // Server-side: use local backend in dev, production in prod
   return process.env.NODE_ENV === 'production' 
     ? 'https://api.leadscope.gr'
-    : 'http://localhost:3001';
+    : 'http://localhost:3000';
 };
 
 /**

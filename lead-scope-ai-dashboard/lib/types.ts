@@ -95,7 +95,7 @@ export interface CrawlJob {
  */
 export interface ExtractionJob {
   id: string;
-  business_id: number;
+  business_id: string; // UUID - matches businesses.id type
   status: 'pending' | 'running' | 'success' | 'failed';
   error_message: string | null;
   created_at: string;

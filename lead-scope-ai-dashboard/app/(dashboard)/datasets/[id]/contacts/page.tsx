@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
+import type { ResponseMeta } from "@/lib/types"
 
 interface BusinessContact {
   id: string
@@ -55,8 +56,8 @@ export default function DatasetContactsPage() {
   const datasetId = params.id as string
   const [loading, setLoading] = useState(true)
   const [businesses, setBusinesses] = useState<BusinessContact[]>([])
-  const [meta, setMeta] = useState({
-    plan_id: 'demo' as const,
+  const [meta, setMeta] = useState<ResponseMeta>({
+    plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,

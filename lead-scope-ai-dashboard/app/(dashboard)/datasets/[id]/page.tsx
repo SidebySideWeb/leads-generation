@@ -40,6 +40,7 @@ import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { ExportButton } from "@/components/dashboard/export-button"
 import { CrawlStatus } from "@/components/dashboard/crawl-status"
+import { DiscoveryRuns } from "@/components/dashboard/discovery-runs"
 
 const statusConfig = {
   active: {
@@ -216,6 +217,20 @@ export default function DatasetDetailPage() {
 
       {datasetMeta.gated && <GateBanner meta={datasetMeta} />}
 
+      {/* Discovery Runs */}
+      {discoveryRuns.length > 0 && (
+        <DiscoveryRuns 
+          discoveryRuns={discoveryRuns}
+          onRefresh={() => {
+            api.getDiscoveryRuns(datasetId).then(res => {
+              if (res.data) {
+                setDiscoveryRuns(res.data)
+              }
+            }).catch(console.error)
+          }}
+        />
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-card border-border">
@@ -356,7 +371,15 @@ export default function DatasetDetailPage() {
                 {businessesMeta.total_available > 0 && ` (${businessesMeta.total_returned} returned, ${businessesMeta.total_available} available)`}
               </CardDescription>
             </div>
-            {businessesMeta.total_available > 0 && <MetaInfo meta={businessesMeta} />}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/datasets/${datasetId}/contacts`}>
+                  <Download className="w-4 h-4 mr-2" />
+                  View All Contacts
+                </Link>
+              </Button>
+              {businessesMeta.total_available > 0 && <MetaInfo meta={businessesMeta} />}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -418,9 +441,12 @@ export default function DatasetDetailPage() {
                             {business.email}
                           </a>
                         ) : business.crawl?.emailsCount ? (
-                          <span className="font-medium">{business.crawl.emailsCount} found</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-foreground">{business.crawl.emailsCount} email{business.crawl.emailsCount !== 1 ? 's' : ''}</span>
+                            <span className="text-xs text-muted-foreground">Extracted from website</span>
+                          </div>
                         ) : (
-                          "—"
+                          <span className="text-muted-foreground/50">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -432,9 +458,12 @@ export default function DatasetDetailPage() {
                             {business.phone}
                           </a>
                         ) : business.crawl?.phonesCount ? (
-                          <span className="font-medium">{business.crawl.phonesCount} found</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-foreground">{business.crawl.phonesCount} phone{business.crawl.phonesCount !== 1 ? 's' : ''}</span>
+                            <span className="text-xs text-muted-foreground">Extracted from website</span>
+                          </div>
                         ) : (
-                          "—"
+                          <span className="text-muted-foreground/50">—</span>
                         )}
                       </TableCell>
                       <TableCell>

@@ -763,7 +763,7 @@ class ApiClient {
   }): Promise<{ 
     data: Array<{
       id: string;
-      business_id: number;
+      business_id: string;
       status: 'pending' | 'running' | 'success' | 'failed';
       error_message: string | null;
       created_at: string;
@@ -778,13 +778,215 @@ class ApiClient {
     
     return this.request<Array<{
       id: string;
-      business_id: number;
+      business_id: string;
       status: 'pending' | 'running' | 'success' | 'failed';
       error_message: string | null;
       created_at: string;
       started_at: string | null;
       completed_at: string | null;
     }>>(`/extraction-jobs?${queryParams.toString()}`);
+  }
+
+  /**
+   * Get extraction job statistics for a dataset
+   * @param datasetId - Dataset UUID
+   * @returns Promise with extraction statistics
+   */
+  async getExtractionStats(datasetId: string): Promise<{
+    data: {
+      total: number;
+      pending: number;
+      running: number;
+      success: number;
+      failed: number;
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      total: number;
+      pending: number;
+      running: number;
+      success: number;
+      failed: number;
+    }>(`/extraction-jobs/stats?datasetId=${datasetId}`);
+  }
+
+  /**
+   * Get detailed business data including all contacts and social media
+   * @param businessId - Business UUID
+   * @returns Promise with detailed business data
+   */
+  async getBusinessDetails(businessId: string): Promise<{
+    data: {
+      id: string;
+      name: string;
+      address: string | null;
+      postal_code: string | null;
+      city: string;
+      industry: string;
+      google_place_id: string | null;
+      website: string | null;
+      emails: Array<{
+        id: number;
+        email: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      phones: Array<{
+        id: number;
+        phone: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      social_media: Record<string, string>;
+      extraction_job: {
+        id: string;
+        status: string;
+        error_message: string | null;
+        created_at: string;
+        started_at: string | null;
+        completed_at: string | null;
+      } | null;
+      created_at: string;
+      updated_at: string;
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      id: string;
+      name: string;
+      address: string | null;
+      postal_code: string | null;
+      city: string;
+      industry: string;
+      google_place_id: string | null;
+      website: string | null;
+      emails: Array<{
+        id: number;
+        email: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      phones: Array<{
+        id: number;
+        phone: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      social_media: Record<string, string>;
+      extraction_job: {
+        id: string;
+        status: string;
+        error_message: string | null;
+        created_at: string;
+        started_at: string | null;
+        completed_at: string | null;
+      } | null;
+      created_at: string;
+      updated_at: string;
+    }>(`/businesses/${businessId}`);
+  }
+
+  /**
+   * Manually trigger extraction for a business or dataset
+   * @param params - businessId or datasetId
+   * @returns Promise with extraction job(s) created
+   */
+  async triggerExtraction(params: {
+    businessId?: string;
+    datasetId?: string;
+  }): Promise<{
+    data: {
+      id?: string;
+      business_id?: string;
+      jobs_created?: number;
+      jobs?: Array<{
+        id: string;
+        business_id: string;
+        status: string;
+      }>;
+      message: string;
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      id?: string;
+      business_id?: string;
+      jobs_created?: number;
+      jobs?: Array<{
+        id: string;
+        business_id: string;
+        status: string;
+      }>;
+      message: string;
+    }>('/extraction-jobs', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  /**
+   * Get all businesses with detailed contacts for a dataset (optimized batch query)
+   * @param datasetId - Dataset UUID
+   * @returns Promise with businesses and all their contacts
+   */
+  async getDatasetContacts(datasetId: string): Promise<{
+    data: Array<{
+      id: string;
+      name: string;
+      address: string | null;
+      website: string | null;
+      emails: Array<{
+        id: number;
+        email: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      phones: Array<{
+        id: number;
+        phone: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      extraction_job: {
+        id: string;
+        status: string;
+        completed_at: string | null;
+      } | null;
+    }> | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<Array<{
+      id: string;
+      name: string;
+      address: string | null;
+      website: string | null;
+      emails: Array<{
+        id: number;
+        email: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      phones: Array<{
+        id: number;
+        phone: string;
+        source_url: string;
+        page_type: string;
+        found_at: string;
+      }>;
+      extraction_job: {
+        id: string;
+        status: string;
+        completed_at: string | null;
+      } | null;
+    }>>(`/businesses/dataset/${datasetId}/contacts`);
   }
 }
 

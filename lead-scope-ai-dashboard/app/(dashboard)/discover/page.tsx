@@ -213,9 +213,17 @@ export default function DiscoverPage() {
       })
 
       // Check for errors first
+      console.log('[Discover] ===== PROCESSING DISCOVERY RESPONSE =====');
+      console.log('[Discover] Full response object:', JSON.stringify(response, null, 2));
+      console.log('[Discover] response.data:', response.data);
+      console.log('[Discover] response.data type:', typeof response.data);
+      console.log('[Discover] response.data is array?', Array.isArray(response.data));
+      console.log('[Discover] response.data length:', Array.isArray(response.data) ? response.data.length : 'N/A');
+      console.log('[Discover] response.meta:', response.meta);
+      
       if (!response.data) {
         const errorMessage = response.meta.gate_reason || response.meta.message || "Failed to start discovery"
-        console.error('[Discover] Discovery failed:', errorMessage, response.meta)
+        console.error('[Discover] Discovery failed - no data:', errorMessage, response.meta)
         toast({
           title: "Discovery failed",
           description: errorMessage,
@@ -226,11 +234,17 @@ export default function DiscoverPage() {
 
       // Discovery is running asynchronously - response.data contains discovery run info
       const discoveryRun = Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null
+      console.log('[Discover] Extracted discoveryRun:', discoveryRun);
+      console.log('[Discover] discoveryRun has id?', discoveryRun && typeof discoveryRun === 'object' && 'id' in discoveryRun);
+      
       if (discoveryRun && typeof discoveryRun === 'object' && 'id' in discoveryRun) {
+        console.log('[Discover] Setting discoveryRunId and starting polling:', (discoveryRun as any).id);
         setDiscoveryRunId((discoveryRun as any).id)
         // Start polling for results
         setPolling(true)
         pollForResults((discoveryRun as any).id)
+      } else {
+        console.warn('[Discover] discoveryRun is invalid:', discoveryRun);
       }
       
       toast({

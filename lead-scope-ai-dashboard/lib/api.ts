@@ -80,7 +80,24 @@ class ApiClient {
     }
 
     try {
-      console.log('[API] Making request to:', url, 'with credentials: include')
+      console.log('[API] ===== FETCH REQUEST START =====');
+      console.log('[API] Making request to:', url);
+      console.log('[API] Method:', options.method || 'GET');
+      console.log('[API] Headers:', {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      });
+      if (options.body) {
+        try {
+          console.log('[API] Body:', JSON.stringify(JSON.parse(options.body), null, 2));
+        } catch {
+          console.log('[API] Body:', options.body);
+        }
+      } else {
+        console.log('[API] Body: none');
+      }
+      console.log('[API] Credentials: include');
+      
       const response = await fetch(url, {
         ...options,
         signal: controller?.signal,
@@ -91,7 +108,9 @@ class ApiClient {
         },
       });
       
-      console.log('[API] Response status:', response.status, response.statusText)
+      console.log('[API] ===== FETCH RESPONSE RECEIVED =====');
+      console.log('[API] Response status:', response.status, response.statusText);
+      console.log('[API] Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -219,13 +238,22 @@ class ApiClient {
       };
     }
 
+    console.log('[API] ===== DISCOVERY REQUEST START =====');
     console.log('[API] discoverBusinesses called with:', input);
     console.log('[API] Request body will be:', JSON.stringify(input));
+    console.log('[API] Base URL:', this.baseUrl);
+    console.log('[API] Full URL will be:', `${this.baseUrl}/discovery/businesses`);
+    
     const result = await this.request<Business[]>('/discovery/businesses', {
       method: 'POST',
       body: JSON.stringify(input),
     });
-    console.log('[API] discoverBusinesses response:', result);
+    
+    console.log('[API] ===== DISCOVERY RESPONSE RECEIVED =====');
+    console.log('[API] discoverBusinesses response status:', result.meta);
+    console.log('[API] discoverBusinesses response data:', result.data);
+    console.log('[API] Full response:', JSON.stringify(result, null, 2));
+    
     return result;
   }
 

@@ -102,6 +102,9 @@ const getPlanLimits = (planId: string) => {
       discoveriesPerMonth: 0,
       exportsPerMonth: 0,
       maxDatasetSize: 0,
+      maxExportSize: 0,
+      refreshAvailable: false,
+      refreshType: "standard" as const,
     }
   }
   return plan.limits

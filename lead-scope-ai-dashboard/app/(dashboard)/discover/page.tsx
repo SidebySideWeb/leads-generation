@@ -492,13 +492,13 @@ export default function DiscoverPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               {business.website && (
-                                <Globe className="w-4 h-4 text-muted-foreground" title="Website available" />
+                                <Globe className="w-4 h-4 text-muted-foreground" />
                               )}
                               {business.email && (
-                                <Mail className="w-4 h-4 text-muted-foreground" title="Email available" />
+                                <Mail className="w-4 h-4 text-muted-foreground" />
                               )}
                               {business.phone && (
-                                <Phone className="w-4 h-4 text-muted-foreground" title="Phone available" />
+                                <Phone className="w-4 h-4 text-muted-foreground" />
                               )}
                             </div>
                           </div>

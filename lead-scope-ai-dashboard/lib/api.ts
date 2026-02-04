@@ -89,7 +89,13 @@ class ApiClient {
       });
       if (options.body) {
         try {
-          console.log('[API] Body:', JSON.stringify(JSON.parse(options.body), null, 2));
+          // BodyInit can be string, URLSearchParams, FormData, Blob, etc.
+          // Only try to parse if it's a string
+          if (typeof options.body === 'string') {
+            console.log('[API] Body:', JSON.stringify(JSON.parse(options.body), null, 2));
+          } else {
+            console.log('[API] Body:', options.body);
+          }
         } catch {
           console.log('[API] Body:', options.body);
         }

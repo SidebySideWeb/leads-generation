@@ -320,7 +320,7 @@ export default function ExportsPage() {
                   <SelectContent>
                     {datasets?.map((dataset) => (
                       <SelectItem key={dataset.id} value={dataset.id}>
-                        {dataset.name}
+                        {dataset.city} - {dataset.industry}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -37,7 +37,7 @@ const mobileNavItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Discover Leads", href: "/discover", icon: Search },
   { name: "My Datasets", href: "/datasets", icon: Database },
-  { name: "Refresh Status", href: "/refresh", icon: RefreshCw },
+  // Hidden for MVP - { name: "Refresh Status", href: "/refresh", icon: RefreshCw },
   { name: "Exports", href: "/exports", icon: Download },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Settings", href: "/settings", icon: Settings },

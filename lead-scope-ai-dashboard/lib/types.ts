@@ -222,6 +222,32 @@ export interface UsageData {
 }
 
 /**
+ * Cost estimation data from discovery (ESTIMATES ONLY - no billing occurs)
+ */
+export interface CostEstimates {
+  estimatedBusinesses: number;
+  completenessStats: {
+    withWebsitePercent: number;
+    withEmailPercent: number;
+    withPhonePercent: number;
+  };
+  exportEstimates: Array<{
+    size: number;
+    priceEUR: number;
+  }>;
+  refreshEstimates: {
+    incompleteOnly: {
+      pricePerBusinessEUR: number;
+      estimatedTotalEUR: number;
+    };
+    fullRefresh: {
+      pricePerBusinessEUR: number;
+      estimatedTotalEUR: number;
+    };
+  };
+}
+
+/**
  * Invoice information
  */
 export interface Invoice {

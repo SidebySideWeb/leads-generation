@@ -210,7 +210,7 @@ export default function DatasetDetailPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <ExportButton datasetId={datasetId} discoveryRuns={discoveryRuns} />
+            <ExportButton datasetId={datasetId} dataset={dataset} discoveryRuns={discoveryRuns} />
           </div>
         </div>
       </div>

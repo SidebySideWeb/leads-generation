@@ -51,11 +51,10 @@ export default async function LandingPage() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
           <div className="max-w-3xl">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight text-balance">
-              Find verified business contacts by city & industry.
+              Βρες επιχειρήσεις σε οποιαδήποτε πόλη — με καθαρά δεδομένα και απόλυτη διαφάνεια.
             </h1>
             <p className="mt-6 text-lg sm:text-xl text-muted-foreground leading-relaxed">
-              Discover, verify and refresh business contact data across Europe. 
-              Access millions of verified contacts with real-time data freshness monitoring.
+              Το LeadScope χαρτογραφεί πόλεις με έξυπνη κάλυψη και εμπλουτίζει δεδομένα από δημόσιες καταχωρήσεις και επίσημα websites.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-4">
               <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -71,17 +70,25 @@ export default async function LandingPage() {
             <div className="mt-12 flex flex-wrap gap-x-8 gap-y-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-accent" />
-                No credit card required
+                Πολυ-σημειακή κάλυψη πόλης (όχι απλό radius search)
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-accent" />
-                GDPR compliant
+                Εμπλουτισμός στοιχείων από websites
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-accent" />
-                European data only
+                Ένδειξη πληρότητας & τελευταίας ενημέρωσης ανά επιχείρηση
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-accent" />
+                Πληρώνεις μόνο όταν κάνεις export
               </div>
             </div>
+            <p className="mt-6 text-xs text-muted-foreground max-w-2xl">
+              Η κάλυψη διαφέρει ανά πόλη και κλάδο. Δεν πρόκειται για επίσημο μητρώο επιχειρήσεων. 
+              Παρέχουμε την καλύτερη δυνατή κάλυψη βάσει δημόσιων πηγών και εμφανίζουμε ξεκάθαρα τι δεδομένα υπάρχουν.
+            </p>
           </div>
         </div>
       </section>
@@ -91,20 +98,20 @@ export default async function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="text-3xl sm:text-4xl font-bold text-foreground">2.4M+</div>
-              <div className="mt-1 text-sm text-muted-foreground">Verified contacts</div>
-            </div>
-            <div className="text-center">
               <div className="text-3xl sm:text-4xl font-bold text-foreground">850+</div>
-              <div className="mt-1 text-sm text-muted-foreground">Cities covered</div>
+              <div className="mt-1 text-sm text-muted-foreground">Πόλεις</div>
             </div>
             <div className="text-center">
               <div className="text-3xl sm:text-4xl font-bold text-foreground">120+</div>
-              <div className="mt-1 text-sm text-muted-foreground">Industries</div>
+              <div className="mt-1 text-sm text-muted-foreground">Κλάδοι</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl sm:text-4xl font-bold text-foreground">98%</div>
-              <div className="mt-1 text-sm text-muted-foreground">Data accuracy</div>
+              <div className="text-3xl sm:text-4xl font-bold text-foreground">Grid-based</div>
+              <div className="mt-1 text-sm text-muted-foreground">Κάλυψη</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl sm:text-4xl font-bold text-foreground">Transparent</div>
+              <div className="mt-1 text-sm text-muted-foreground">Διαφάνεια</div>
             </div>
           </div>
         </div>
@@ -125,33 +132,33 @@ export default async function LandingPage() {
             {[
               {
                 icon: Globe,
-                title: "European Coverage",
-                description: "Access business data from Greece and expanding across Europe. City-level targeting for precise prospecting.",
+                title: "Grid-Based Coverage",
+                description: "Πολυ-σημειακή κάλυψη πόλης με overlapping grid points για μέγιστη κάλυψη. Όχι απλό radius search.",
               },
               {
                 icon: Building2,
                 title: "Industry Filtering",
-                description: "Filter by 120+ industry categories. From restaurants to law firms, find exactly the businesses you need.",
+                description: "Φιλτράρισμα ανά 120+ κλάδους. Από εστιατόρια έως δικηγορικά γραφεία, βρες ακριβώς τις επιχειρήσεις που χρειάζεσαι.",
               },
               {
                 icon: Users,
-                title: "Verified Contacts",
-                description: "Email addresses, phone numbers, and websites verified against multiple sources for accuracy.",
+                title: "Data Enrichment",
+                description: "Εμπλουτισμός στοιχείων από δημόσιες πηγές και επίσημα websites. Εμφάνιση πληρότητας δεδομένων ανά επιχείρηση.",
               },
               {
                 icon: Sparkles,
-                title: "AI-Powered Discovery",
-                description: "Our AI crawls the web continuously to find and verify new business contacts automatically.",
+                title: "Smart Discovery",
+                description: "Έξυπνη ανακάλυψη με keyword expansion και grid-based search. Διαφανής ένδειξη κάλυψης και πληρότητας.",
               },
               {
                 icon: Shield,
-                title: "GDPR Compliant",
-                description: "All data collection and processing follows strict GDPR guidelines. Business-only data, no personal contacts.",
+                title: "Transparent Data",
+                description: "Ξεκάθαρη ένδειξη τι δεδομένα υπάρχουν (website, email, phone). Δεν υποσχόμαστε 100% κάλυψη.",
               },
               {
                 icon: Clock,
-                title: "Freshness Monitoring",
-                description: "Track when contacts were last verified. Monthly refresh subscriptions keep your data current.",
+                title: "Freshness Tracking",
+                description: "Παρακολούθηση τελευταίας ενημέρωσης ανά επιχείρηση. Προαιρετικό refresh μόνο όπου απαιτείται.",
               },
             ].map((feature) => (
               <div

@@ -21,21 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { useToast } from "@/hooks/use-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { ExportModal } from "@/components/dashboard/export-modal"
+import { FreshnessTag } from "@/components/dashboard/freshness-tag"
 
 const statusConfig = {
   completed: {
@@ -58,7 +45,6 @@ const statusConfig = {
 export default function ExportsPage() {
   const [exports, setExports] = useState<ExportResult[] | null>(null)
   const [datasets, setDatasets] = useState<Dataset[] | null>(null)
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("")
   const [meta, setMeta] = useState<ResponseMeta>({
     plan_id: 'demo',
     gated: false,
@@ -67,8 +53,8 @@ export default function ExportsPage() {
   })
   const [networkError, setNetworkError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [creatingExport, setCreatingExport] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null)
   const { toast } = useToast()
 
   // Load exports and datasets on mount
@@ -102,90 +88,9 @@ export default function ExportsPage() {
       const response = await api.getDatasets()
       if (response.data) {
         setDatasets(response.data)
-        // Auto-select first dataset if available
-        if (response.data.length > 0 && !selectedDatasetId) {
-          setSelectedDatasetId(response.data[0].id)
-        }
       }
     } catch (error) {
       console.error('Failed to load datasets:', error)
-    }
-  }
-
-  const handleCreateExport = async () => {
-    if (!selectedDatasetId) {
-      toast({
-        title: "No dataset selected",
-        description: "Please select a dataset to export",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setCreatingExport(true)
-    try {
-      // Call runExport which returns a Response with CSV file
-      const response = await api.runExport(selectedDatasetId, 'csv')
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        toast({
-          title: "Export failed",
-          description: errorData.message || errorData.meta?.gate_reason || `HTTP ${response.status}`,
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Handle file download
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      
-      // Get filename from Content-Disposition header or use default
-      const contentDisposition = response.headers.get('Content-Disposition')
-      let filename = `export-${selectedDatasetId}-${Date.now()}.csv`
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i)
-        if (filenameMatch) {
-          filename = filenameMatch[1]
-        }
-      }
-      
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-
-      toast({
-        title: "Export created",
-        description: "Your CSV file has been downloaded",
-      })
-
-      // Close dialog and refresh exports list
-      setDialogOpen(false)
-      // Wait a bit for backend to process, then refresh
-      setTimeout(() => {
-        loadExports()
-      }, 1000)
-    } catch (error) {
-      if (error instanceof NetworkError) {
-        toast({
-          title: "Network error",
-          description: error.message,
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        })
-      }
-    } finally {
-      setCreatingExport(false)
     }
   }
 
@@ -296,56 +201,34 @@ export default function ExportsPage() {
             Download and manage your exported datasets
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Export
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Export</DialogTitle>
-              <DialogDescription>
-                Select a dataset to export as CSV
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Dataset</label>
-                <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a dataset" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {datasets?.map((dataset) => (
-                      <SelectItem key={dataset.id} value={dataset.id}>
-                        {dataset.city} - {dataset.industry}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={handleCreateExport}
-                disabled={!selectedDatasetId || creatingExport}
-                className="w-full"
-              >
-                {creatingExport ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating Export...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    Export as CSV
-                  </>
-                )}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button 
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          onClick={() => {
+            if (datasets && datasets.length > 0) {
+              setSelectedDataset(datasets[0])
+              setDialogOpen(true)
+            } else {
+              toast({
+                title: "No datasets",
+                description: "Please create a dataset first",
+                variant: "destructive",
+              })
+            }
+          }}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Create Export
+        </Button>
+        
+        <ExportModal
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          dataset={selectedDataset}
+          onComplete={() => {
+            loadExports()
+            setDialogOpen(false)
+          }}
+        />
       </div>
 
       {networkError && (
@@ -362,8 +245,9 @@ export default function ExportsPage() {
       <Alert className="bg-muted/50 border-border">
         <Info className="h-4 w-4 text-muted-foreground" />
         <AlertDescription className="text-muted-foreground">
-          Exports are snapshots of your data at the time of export. Data freshness depends on your 
-          subscription plan and refresh schedule.
+          Το export περιλαμβάνει τα διαθέσιμα δεδομένα της βάσης. Το refresh είναι προαιρετικό 
+          και εφαρμόζεται μόνο όπου απαιτείται. Μπορείτε να κατεβάσετε ξανά προηγούμενα exports 
+          χωρίς επιπλέον χρέωση.
         </AlertDescription>
       </Alert>
 
@@ -433,6 +317,7 @@ export default function ExportsPage() {
                       <TableHead className="text-muted-foreground">Date</TableHead>
                       <TableHead className="text-muted-foreground">Dataset</TableHead>
                       <TableHead className="text-muted-foreground text-right">Rows</TableHead>
+                      <TableHead className="text-muted-foreground">Data Freshness</TableHead>
                       <TableHead className="text-muted-foreground">Format</TableHead>
                       <TableHead className="text-muted-foreground">Status</TableHead>
                       <TableHead className="text-muted-foreground text-right">Actions</TableHead>
@@ -461,6 +346,9 @@ export default function ExportsPage() {
                                 </div>
                               </div>
                             ) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <FreshnessTag lastUpdatedAt={exportItem.created_at} />
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="bg-muted text-muted-foreground border-border">

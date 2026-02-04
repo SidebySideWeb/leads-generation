@@ -17,16 +17,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Database, Plus, MoreHorizontal, Eye, Download, ArrowUpCircle, AlertTriangle } from "lucide-react"
+import { Database, Plus, MoreHorizontal, Eye, Download, ArrowUpCircle, AlertTriangle, Mail, Phone, Globe, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { api } from "@/lib/api"
 import { NetworkError } from "@/lib/api"
-import type { Dataset, ResponseMeta } from "@/lib/types"
+import type { Dataset, ResponseMeta, Business } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { ExportAction } from "@/components/dashboard/export-action"
+import { FreshnessTag } from "@/components/dashboard/freshness-tag"
 // Auth is handled client-side via API calls (they redirect on 401/403)
 
 const statusConfig = {
@@ -61,6 +62,7 @@ export default async function DatasetsPage() {
     total_returned: 0,
   }
   let networkError: string | null = null
+  let datasetCompleteness: Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }> = {}
 
   try {
     console.log('[DatasetsPage] Fetching datasets from API...')
@@ -74,6 +76,47 @@ export default async function DatasetsPage() {
     if (response.data) {
       datasets = response.data
       console.log('[DatasetsPage] Loaded datasets:', datasets.length)
+      
+      // Fetch completeness data for each dataset
+      for (const dataset of datasets) {
+        try {
+          const businessesRes = await api.getBusinesses(dataset.id, { limit: 100 })
+          if (businessesRes.data && businessesRes.data.length > 0) {
+            const businesses = businessesRes.data
+            const withEmail = businesses.filter(b => b.email).length
+            const withPhone = businesses.filter(b => b.phone).length
+            const withWebsite = businesses.filter(b => b.website).length
+            
+            // Get last discovery date from discovery runs
+            let lastDiscovery: string | null = null
+            try {
+              const discoveryRunsRes = await api.getDiscoveryRuns(dataset.id)
+              if (discoveryRunsRes.data && discoveryRunsRes.data.length > 0) {
+                const completedRuns = discoveryRunsRes.data.filter(run => run.status === 'completed' && run.completed_at)
+                if (completedRuns.length > 0) {
+                  lastDiscovery = completedRuns.sort((a, b) => 
+                    new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime()
+                  )[0].completed_at!
+                }
+              }
+            } catch (e) {
+              // Ignore discovery runs errors
+            }
+            
+            // Estimate percentages based on sample
+            const sampleSize = businesses.length
+            datasetCompleteness[dataset.id] = {
+              withEmail: Math.round((withEmail / sampleSize) * 100),
+              withPhone: Math.round((withPhone / sampleSize) * 100),
+              withWebsite: Math.round((withWebsite / sampleSize) * 100),
+              lastDiscovery,
+            }
+          }
+        } catch (e) {
+          // Ignore individual dataset errors
+          console.error(`[DatasetsPage] Error loading completeness for dataset ${dataset.id}:`, e)
+        }
+      }
     } else {
       console.log('[DatasetsPage] No datasets in response')
     }
@@ -181,8 +224,8 @@ export default async function DatasetsPage() {
                     <TableHead className="text-muted-foreground">Industry</TableHead>
                     <TableHead className="text-muted-foreground">City</TableHead>
                     <TableHead className="text-muted-foreground text-right">Businesses</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Contacts</TableHead>
-                    <TableHead className="text-muted-foreground">Created</TableHead>
+                    <TableHead className="text-muted-foreground">Completeness</TableHead>
+                    <TableHead className="text-muted-foreground">Last Discovery</TableHead>
                     <TableHead className="text-muted-foreground">Refresh Status</TableHead>
                     <TableHead className="text-muted-foreground text-right">Actions</TableHead>
                   </TableRow>
@@ -203,11 +246,47 @@ export default async function DatasetsPage() {
                       <TableCell className="text-muted-foreground text-right">
                         {dataset.businesses.toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-right">
-                        {dataset.contacts.toLocaleString()}
+                      <TableCell>
+                        {datasetCompleteness[dataset.id] ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1" title={`${datasetCompleteness[dataset.id].withWebsite}% have website`}>
+                              <Globe className={cn(
+                                "w-4 h-4",
+                                datasetCompleteness[dataset.id].withWebsite > 50 ? "text-success" : 
+                                datasetCompleteness[dataset.id].withWebsite > 20 ? "text-warning" : 
+                                "text-muted-foreground"
+                              )} />
+                              <span className="text-xs text-muted-foreground">{datasetCompleteness[dataset.id].withWebsite}%</span>
+                            </div>
+                            <div className="flex items-center gap-1" title={`${datasetCompleteness[dataset.id].withEmail}% have email`}>
+                              <Mail className={cn(
+                                "w-4 h-4",
+                                datasetCompleteness[dataset.id].withEmail > 50 ? "text-success" : 
+                                datasetCompleteness[dataset.id].withEmail > 20 ? "text-warning" : 
+                                "text-muted-foreground"
+                              )} />
+                              <span className="text-xs text-muted-foreground">{datasetCompleteness[dataset.id].withEmail}%</span>
+                            </div>
+                            <div className="flex items-center gap-1" title={`${datasetCompleteness[dataset.id].withPhone}% have phone`}>
+                              <Phone className={cn(
+                                "w-4 h-4",
+                                datasetCompleteness[dataset.id].withPhone > 50 ? "text-success" : 
+                                datasetCompleteness[dataset.id].withPhone > 20 ? "text-warning" : 
+                                "text-muted-foreground"
+                              )} />
+                              <span className="text-xs text-muted-foreground">{datasetCompleteness[dataset.id].withPhone}%</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(dataset.createdAt)}
+                      <TableCell>
+                        {datasetCompleteness[dataset.id]?.lastDiscovery ? (
+                          <FreshnessTag lastUpdatedAt={datasetCompleteness[dataset.id].lastDiscovery} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge

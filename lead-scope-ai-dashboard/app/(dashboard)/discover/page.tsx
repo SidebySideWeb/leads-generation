@@ -14,15 +14,25 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Search, Building2, MapPin, Info, CreditCard, Sparkles } from "lucide-react"
+import { Search, Building2, MapPin, Info, CreditCard, Sparkles, Globe, Mail, Phone, Loader2 } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import type { Industry, City, ResponseMeta } from "@/lib/types"
+import type { Industry, City, ResponseMeta, Business } from "@/lib/types"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { usePermissions } from "@/contexts/PermissionsContext"
 import { canPerformAction } from "@/lib/permissions"
+import { CoverageBadge, calculateCoverageLevel } from "@/components/dashboard/coverage-badge"
+import { CompletenessStats } from "@/components/dashboard/completeness-stats"
+import { ExportCostEstimator } from "@/components/dashboard/export-cost-estimator"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import type { CostEstimates } from "@/lib/types"
 
 export default function DiscoverPage() {
   const [selectedIndustry, setSelectedIndustry] = useState("")
@@ -45,6 +55,16 @@ export default function DiscoverPage() {
   })
   const [loadingData, setLoadingData] = useState(true)
   const [networkError, setNetworkError] = useState<string | null>(null)
+  const [discoveryRunId, setDiscoveryRunId] = useState<string | null>(null)
+  const [previewData, setPreviewData] = useState<{
+    businesses: Business[]
+    totalBusinesses: number
+    withWebsite: number
+    withEmail: number
+    withPhone: number
+  } | null>(null)
+  const [costEstimates, setCostEstimates] = useState<CostEstimates | null>(null)
+  const [polling, setPolling] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const { permissions } = usePermissions()
@@ -88,6 +108,80 @@ export default function DiscoverPage() {
     city.name.toLowerCase().includes(citySearch.toLowerCase())
   )
 
+  // Poll for discovery results with cost estimates
+  const pollForResults = async (runId: string) => {
+    let attempts = 0
+    const maxAttempts = 30 // Poll for up to 5 minutes (10s intervals)
+    
+    const poll = async () => {
+      try {
+        // First, try to get discovery run results with cost estimates
+        const resultsRes = await api.getDiscoveryRunResults(runId)
+        if (resultsRes.data && resultsRes.data.status === 'completed' && resultsRes.data.cost_estimates) {
+          // Discovery completed with cost estimates
+          const estimates = resultsRes.data.cost_estimates
+          setCostEstimates(estimates)
+          
+          // Get datasets to find the one created by this discovery run
+          const datasetsRes = await api.getDatasets()
+          if (datasetsRes.data && datasetsRes.data.length > 0) {
+            // Find the most recent dataset (should be the one just created)
+            const latestDataset = datasetsRes.data[0]
+            
+            // Get sample businesses from this dataset
+            const businessesRes = await api.getBusinesses(latestDataset.id, { limit: 10 })
+            if (businessesRes.data && businessesRes.data.length > 0) {
+              const businesses = businessesRes.data
+              
+              setPreviewData({
+                businesses: businesses.slice(0, 10), // Sample of 10
+                totalBusinesses: estimates.estimatedBusinesses,
+                withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
+                withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
+                withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
+              })
+            } else {
+              // No businesses yet, but we have estimates
+              setPreviewData({
+                businesses: [],
+                totalBusinesses: estimates.estimatedBusinesses,
+                withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
+                withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
+                withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
+              })
+            }
+          }
+          
+          setPolling(false)
+          return
+        }
+        
+        // Still running or not completed yet
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 10000) // Poll every 10 seconds
+        } else {
+          setPolling(false)
+          toast({
+            title: "Discovery taking longer than expected",
+            description: "Results will be available in your datasets shortly.",
+          })
+        }
+      } catch (error) {
+        console.error('[Discover] Error polling for results:', error)
+        attempts++
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 10000)
+        } else {
+          setPolling(false)
+        }
+      }
+    }
+    
+    // Start polling after initial delay
+    setTimeout(poll, 5000)
+  }
+
   const handleDiscover = async () => {
     if (!selectedIndustry || !selectedCity) {
       toast({
@@ -130,17 +224,19 @@ export default function DiscoverPage() {
         return
       }
 
-      // Discovery is running asynchronously
+      // Discovery is running asynchronously - response.data contains discovery run info
+      const discoveryRun = Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null
+      if (discoveryRun && typeof discoveryRun === 'object' && 'id' in discoveryRun) {
+        setDiscoveryRunId((discoveryRun as any).id)
+        // Start polling for results
+        setPolling(true)
+        pollForResults((discoveryRun as any).id)
+      }
+      
       toast({
         title: "Discovery started",
         description: response.meta.message || "Finding businesses based on your criteria. This may take a few moments.",
       })
-      
-      // Redirect to datasets page after a short delay
-      // The discovery is running in the background and will populate the dataset
-      setTimeout(() => {
-        router.push(`/datasets`)
-      }, 1500)
     } catch (error) {
       if (error instanceof NetworkError) {
         toast({
@@ -276,10 +372,23 @@ export default function DiscoverPage() {
           {/* Info Box */}
           <Alert className="bg-primary/5 border-primary/20">
             <Info className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-foreground">Discovery creates a static dataset</AlertTitle>
+            <AlertTitle className="text-foreground">Grid-Based Discovery</AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              Your discovery results will be saved as a snapshot. For monthly updates and change 
-              detection, you will need to upgrade to a subscription plan.
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="underline cursor-help">
+                      Η ανακάλυψη γίνεται με πολλαπλά σημεία κάλυψης της πόλης για μέγιστο αποτέλεσμα.
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs text-sm">
+                      Χρησιμοποιούμε grid-based discovery με overlapping points για να εξασφαλίσουμε 
+                      καλή κάλυψη. Δεν πρόκειται για επίσημο μητρώο - η κάλυψη διαφέρει ανά πόλη και κλάδο.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </AlertDescription>
           </Alert>
 
@@ -300,12 +409,150 @@ export default function DiscoverPage() {
             </Button>
           </div>
 
-          <p className="text-xs text-center text-muted-foreground">
-            <CreditCard className="inline w-3 h-3 mr-1" />
-            Payment confirmation required before discovery starts
-          </p>
+          <Alert className="bg-success/5 border-success/20">
+            <Info className="h-4 w-4 text-success" />
+            <AlertDescription className="text-sm text-muted-foreground">
+              Η ανακάλυψη είναι δωρεάν. Πληρώνετε μόνο όταν επιλέξετε να εξάγετε δεδομένα.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
+
+      {/* Preview State */}
+      {(discoveryRunId || previewData || costEstimates) && (
+        <>
+          {/* Loading State */}
+          {polling && !previewData && !costEstimates && (
+            <Card className="bg-card border-border">
+              <CardContent className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="ml-3 text-sm text-muted-foreground">
+                  Αναζήτηση επιχειρήσεων με grid-based discovery...
+                </span>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Results Preview */}
+          {(previewData || costEstimates) && (
+            <>
+              {/* Preview Section */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-card-foreground">Προεπισκόπηση Αποτελεσμάτων</CardTitle>
+                  <CardDescription>
+                    {costEstimates 
+                      ? `~${costEstimates.estimatedBusinesses.toLocaleString()} επιχειρήσεις βρέθηκαν`
+                      : "Αναζήτηση επιχειρήσεων..."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Estimated Businesses & Coverage */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="text-center p-4 rounded-lg bg-muted/50">
+                      <div className="text-3xl font-bold text-foreground">
+                        {costEstimates ? `~${costEstimates.estimatedBusinesses.toLocaleString()}` : previewData?.totalBusinesses.toLocaleString() || '—'}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">Επιχειρήσεις</div>
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-muted/50 flex items-center justify-center">
+                      <CoverageBadge 
+                        level={costEstimates 
+                          ? calculateCoverageLevel(costEstimates.estimatedBusinesses / 100)
+                          : previewData 
+                            ? calculateCoverageLevel(previewData.totalBusinesses / 100)
+                            : "MEDIUM"
+                        } 
+                        showTooltip={true}
+                      />
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-muted/50">
+                      <div className="text-sm text-muted-foreground mb-1">Κάλυψη</div>
+                      <div className="text-xs text-muted-foreground">
+                        Grid-based discovery
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sample Businesses */}
+                  {previewData && previewData.businesses.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-foreground">Δείγμα Επιχειρήσεων</h4>
+                      <div className="space-y-2">
+                        {previewData.businesses.slice(0, 10).map((business, idx) => (
+                          <div 
+                            key={business.id || idx} 
+                            className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+                          >
+                            <div className="flex-1">
+                              <div className="font-medium text-sm text-foreground">{business.name}</div>
+                              {business.address && (
+                                <div className="text-xs text-muted-foreground mt-1">{business.address}</div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {business.website && (
+                                <Globe className="w-4 h-4 text-muted-foreground" title="Website available" />
+                              )}
+                              {business.email && (
+                                <Mail className="w-4 h-4 text-muted-foreground" title="Email available" />
+                              )}
+                              {business.phone && (
+                                <Phone className="w-4 h-4 text-muted-foreground" title="Phone available" />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Completeness Stats */}
+              {costEstimates && (
+                <CompletenessStats
+                  withWebsitePercent={costEstimates.completenessStats.withWebsitePercent}
+                  withEmailPercent={costEstimates.completenessStats.withEmailPercent}
+                  withPhonePercent={costEstimates.completenessStats.withPhonePercent}
+                  totalBusinesses={costEstimates.estimatedBusinesses}
+                />
+              )}
+
+              {/* Cost Estimator */}
+              {costEstimates && (
+                <ExportCostEstimator costEstimates={costEstimates} />
+              )}
+
+              {/* CTAs */}
+              {(previewData || costEstimates) && (
+                <Card className="bg-card border-border">
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Button 
+                        className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                        onClick={() => router.push('/datasets')}
+                      >
+                        Αποθήκευση Dataset
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => router.push('/exports')}
+                      >
+                        Συνέχεια στο Export
+                      </Button>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Η ανακάλυψη είναι δωρεάν. Πληρώνετε μόνο όταν επιλέξετε να εξάγετε δεδομένα.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {/* Tips Card */}
       <Card className="bg-card border-border">

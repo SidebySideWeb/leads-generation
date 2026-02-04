@@ -7,7 +7,7 @@
  * structure. The UI should never detect or depend on storage mode.
  */
 
-import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry, City, User, Subscription, UsageData, Invoice } from './types';
+import type { Dataset, Business, CrawlJob, ExportResult, ResponseMeta, Industry, City, User, Subscription, UsageData, Invoice, CostEstimates } from './types';
 
 /**
  * API client configuration
@@ -364,11 +364,16 @@ class ApiClient {
    * Run export (generate and download CSV/XLSX)
    * @param datasetId - Dataset UUID
    * @param format - Export format ('csv' | 'xlsx')
+   * @param options - Optional export options (size, refresh)
    * @returns Promise with export result (file download)
    */
   async runExport(
     datasetId: string,
-    format: 'csv' | 'xlsx' = 'csv'
+    format: 'csv' | 'xlsx' = 'csv',
+    options?: {
+      size?: number;
+      refresh?: 'none' | 'incomplete' | 'full';
+    }
   ): Promise<Response> {
     // Call backend directly (backend route is /exports/run)
     const url = `${this.baseUrl}/exports/run`;
@@ -377,7 +382,12 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ datasetId, format }),
+      body: JSON.stringify({ 
+        datasetId, 
+        format,
+        ...(options?.size && { size: options.size }),
+        ...(options?.refresh && { refresh: options.refresh }),
+      }),
       credentials: 'include', // Always send cookies for auth
     });
     
@@ -743,6 +753,7 @@ class ApiClient {
       status: 'running' | 'completed' | 'failed';
       created_at: string;
       completed_at: string | null;
+      cost_estimates?: CostEstimates | null;
     }> | null; 
     meta: ResponseMeta 
   }> {
@@ -752,7 +763,32 @@ class ApiClient {
       status: 'running' | 'completed' | 'failed';
       created_at: string;
       completed_at: string | null;
+      cost_estimates?: CostEstimates | null;
     }>>(`/refresh?dataset_id=${datasetId}`);
+  }
+
+  /**
+   * Get discovery run results with cost estimates
+   * @param runId - Discovery run UUID
+   * @returns Promise with discovery run results including cost estimates
+   */
+  async getDiscoveryRunResults(runId: string): Promise<{
+    data: {
+      id: string;
+      status: 'running' | 'completed' | 'failed';
+      created_at: string;
+      completed_at: string | null;
+      cost_estimates: CostEstimates | null;
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      id: string;
+      status: 'running' | 'completed' | 'failed';
+      created_at: string;
+      completed_at: string | null;
+      cost_estimates: CostEstimates | null;
+    }>(`/discovery/runs/${runId}/results`);
   }
 
   /**

@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { CheckCircle, Download, Building2, RefreshCw, Users, Zap, Loader2 } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { CheckCircle, Download, Loader2, Zap, Info, Database, FileDown, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
@@ -22,48 +23,88 @@ import { useRouter } from "next/navigation"
 import type { Subscription, UsageData, Invoice } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 
+// Plan configuration matching requirements
 const plans = [
   {
-    id: "snapshot",
-    name: "Snapshot",
-    price: "€30",
-    period: "one-time",
-    description: "For quick, one-time data needs",
-    features: ["1 industry", "1 city", "One-time export", "No updates"],
+    id: "starter",
+    name: "Starter",
+    price: "€29",
+    period: "/μήνα",
+    description: "Για μικρές επιχειρήσεις και ξεκινήματα",
+    features: [
+      "3 discoveries / μήνα",
+      "Έως 500 επιχειρήσεις ανά dataset",
+      "Έως 1 export / μήνα",
+      "Refresh διαθέσιμο (επιπλέον χρέωση)",
+    ],
+    limits: {
+      discoveriesPerMonth: 3,
+      maxDatasetSize: 500,
+      maxExportSize: 500,
+      exportsPerMonth: 1,
+      refreshAvailable: true,
+      refreshType: "standard" as const,
+    },
     popular: false,
   },
   {
     id: "professional",
-    name: "Professional",
+    name: "Pro",
     price: "€99",
-    period: "/month",
-    description: "For growing teams and agencies",
-    features: ["5 industries", "Monthly refresh", "Up to 5,000 exports/month", "Change detection"],
+    period: "/μήνα",
+    description: "Για μεγάλες επιχειρήσεις και ομάδες",
+    features: [
+      "10 discoveries / μήνα",
+      "Έως 2.000 επιχειρήσεις ανά dataset",
+      "Έως 5 exports / μήνα",
+      "Priority refresh",
+    ],
+    limits: {
+      discoveriesPerMonth: 10,
+      maxDatasetSize: 2000,
+      maxExportSize: 2000,
+      exportsPerMonth: 5,
+      refreshAvailable: true,
+      refreshType: "priority" as const,
+    },
     popular: true,
   },
   {
     id: "agency",
     name: "Agency",
     price: "€299",
-    period: "/month",
-    description: "For agencies with high volume needs",
-    features: ["Unlimited industries", "Unlimited cities", "Monthly refresh", "Unlimited exports", "Priority crawling"],
+    period: "/μήνα",
+    description: "Για agencies με υψηλές ανάγκες",
+    features: [
+      "Unlimited discoveries*",
+      "Έως 10.000 επιχειρήσεις ανά dataset",
+      "Unlimited exports",
+      "Advanced refresh",
+    ],
+    limits: {
+      discoveriesPerMonth: Infinity,
+      maxDatasetSize: 10000,
+      maxExportSize: Infinity,
+      exportsPerMonth: Infinity,
+      refreshAvailable: true,
+      refreshType: "advanced" as const,
+    },
     popular: false,
+    footnote: "*Fair use policy applies",
   },
 ]
 
-// Plan limits based on plan type
-const getPlanLimits = (plan: string) => {
-  switch (plan) {
-    case 'snapshot':
-      return { industries: 1, exports: 1, datasets: 1 }
-    case 'professional':
-      return { industries: 5, exports: 5000, datasets: 5 }
-    case 'agency':
-      return { industries: Infinity, exports: Infinity, datasets: Infinity }
-    default:
-      return { industries: 0, exports: 0, datasets: 0 }
+// Get plan limits for usage calculations
+const getPlanLimits = (planId: string) => {
+  const plan = plans.find(p => p.id === planId)
+  if (!plan) {
+    return {
+      discoveriesPerMonth: 0,
+      exportsPerMonth: 0,
+      maxDatasetSize: 0,
+    }
   }
+  return plan.limits
 }
 
 function BillingPageInner() {
@@ -76,6 +117,7 @@ function BillingPageInner() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [user, setUser] = useState<{ id: string; email: string; plan: string } | null>(null)
   const [loadingData, setLoadingData] = useState(true)
+  const [businessesExported, setBusinessesExported] = useState<number>(0)
 
   useEffect(() => {
     // Handle Stripe redirect
@@ -88,9 +130,7 @@ function BillingPageInner() {
         title: "Payment successful",
         description: "Your subscription has been activated.",
       })
-      // Reload data
       loadData()
-      // Clean up URL
       router.replace('/billing')
     } else if (canceled) {
       toast({
@@ -105,11 +145,12 @@ function BillingPageInner() {
   const loadData = async () => {
     try {
       setLoadingData(true)
-      const [userRes, subscriptionRes, usageRes, invoicesRes] = await Promise.all([
+      const [userRes, subscriptionRes, usageRes, invoicesRes, exportsRes] = await Promise.all([
         api.getCurrentUser(),
         api.getSubscription(),
         api.getUsage(),
         api.getInvoices(),
+        api.getExports().catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } })),
       ])
 
       if (userRes.data) {
@@ -126,6 +167,17 @@ function BillingPageInner() {
 
       if (invoicesRes.data) {
         setInvoices(invoicesRes.data)
+      }
+
+      // Calculate businesses exported this month
+      if (exportsRes.data) {
+        const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
+        const thisMonthExports = exportsRes.data.filter(exp => {
+          const exportDate = new Date(exp.created_at).toISOString().slice(0, 7)
+          return exportDate === currentMonth
+        })
+        const totalBusinesses = thisMonthExports.reduce((sum, exp) => sum + (exp.total_rows || 0), 0)
+        setBusinessesExported(totalBusinesses)
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
@@ -148,7 +200,6 @@ function BillingPageInner() {
     setLoading({ ...loading, [planId]: true })
 
     try {
-      // Get current user
       const userResponse = await api.getCurrentUser()
       if (!userResponse.data) {
         toast({
@@ -170,7 +221,6 @@ function BillingPageInner() {
         return
       }
 
-      // Redirect to Stripe Checkout
       window.location.href = response.data.url
     } catch (error) {
       if (error instanceof NetworkError) {
@@ -191,30 +241,53 @@ function BillingPageInner() {
     }
   }
 
+  // Map user plan to plan ID (handle snapshot -> starter, professional -> pro)
+  const getUserPlanId = (plan: string | undefined): string => {
+    if (!plan || plan === 'demo') return 'demo'
+    if (plan === 'snapshot') return 'starter'
+    if (plan === 'professional' || plan === 'pro') return 'professional'
+    return plan
+  }
+  
+  const userPlanId = getUserPlanId(user?.plan)
+  // For demo users, show starter plan as current (they can upgrade)
+  const currentPlan = plans.find(p => p.id === userPlanId) || plans[0]
+  const planLimits = getPlanLimits(userPlanId === 'demo' ? 'starter' : userPlanId)
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Billing & Plans</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your subscription and view your billing history
+          Διαχείριση συνδρομής και προβολή ιστορικού χρέωσης
         </p>
       </div>
+
+      {/* Pricing Explanation Block */}
+      <Alert className="bg-primary/5 border-primary/20">
+        <Info className="h-4 w-4 text-primary" />
+        <AlertDescription className="text-sm text-muted-foreground">
+          <strong className="text-foreground">Τα πακέτα καθορίζουν τα όρια χρήσης της πλατφόρμας.</strong>
+          <br />
+          Η χρέωση δεδομένων γίνεται μόνο όταν εξάγετε αποτελέσματα ή ζητάτε ανανέωση στοιχείων.
+        </AlertDescription>
+      </Alert>
 
       {/* Current Plan Summary */}
       <Card className="bg-card border-border">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-card-foreground">Current Plan</CardTitle>
+              <CardTitle className="text-card-foreground">Τρέχον Πακέτο</CardTitle>
               <CardDescription>
-                {loadingData ? "Loading..." : `You are currently on the ${user?.plan ? user.plan.charAt(0).toUpperCase() + user.plan.slice(1) : 'Demo'} plan`}
+                {loadingData ? "Loading..." : user?.plan === 'demo' ? "Είστε στο δωρεάν πακέτο Demo" : `Είστε στο πακέτο ${currentPlan.name}`}
               </CardDescription>
             </div>
             {loadingData ? (
               <Skeleton className="h-6 w-24" />
             ) : (
               <Badge className="bg-primary/10 text-primary border-primary/20">
-                {user?.plan ? user.plan.charAt(0).toUpperCase() + user.plan.slice(1) : 'Demo'}
+                {user?.plan === 'demo' ? 'Demo' : currentPlan.name}
               </Badge>
             )}
           </div>
@@ -230,9 +303,9 @@ function BillingPageInner() {
               {subscription.current_period_end && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg bg-muted/50">
                   <div>
-                    <p className="text-sm text-muted-foreground">Next billing date</p>
+                    <p className="text-sm text-muted-foreground">Επόμενη χρέωση</p>
                     <p className="text-lg font-medium text-foreground">
-                      {new Date(subscription.current_period_end).toLocaleDateString("en-US", {
+                      {new Date(subscription.current_period_end).toLocaleDateString("el-GR", {
                         month: "long",
                         day: "numeric",
                         year: "numeric",
@@ -240,63 +313,75 @@ function BillingPageInner() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Status</p>
+                    <p className="text-sm text-muted-foreground">Κατάσταση</p>
                     <p className="text-lg font-medium text-foreground">
-                      {subscription.status === 'active' ? 'Active' : subscription.status}
+                      {subscription.status === 'active' ? 'Ενεργό' : subscription.status}
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Usage Bars */}
+              {/* Usage Section */}
               {usage && (
                 <div className="space-y-4">
-                  <h4 className="text-sm font-medium text-foreground">Usage this period</h4>
-                  {(() => {
-                    const limits = getPlanLimits(user?.plan || 'demo')
-                    const usageItems = [
-                      {
-                        name: "Monthly exports",
-                        used: usage.exports_this_month,
-                        limit: limits.exports,
-                        icon: Download,
-                      },
-                      {
-                        name: "Datasets created",
-                        used: usage.datasets_created_this_month,
-                        limit: limits.datasets,
-                        icon: Building2,
-                      },
-                      {
-                        name: "Crawls this month",
-                        used: usage.crawls_this_month,
-                        limit: limits.datasets * 10, // Estimate
-                        icon: RefreshCw,
-                      },
-                    ]
-                    return usageItems.map((item) => (
-                      <div key={item.name} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="flex items-center gap-2 text-muted-foreground">
-                            <item.icon className="w-4 h-4" />
-                            {item.name}
-                          </span>
-                          <span className="font-medium text-foreground">
-                            {item.used.toLocaleString()} / {item.limit === Infinity ? '∞' : item.limit.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all",
-                              item.limit !== Infinity && item.used / item.limit > 0.9 ? "bg-warning" : "bg-primary"
-                            )}
-                            style={{ width: `${item.limit === Infinity ? 0 : Math.min((item.used / item.limit) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  })()}
+                  <h4 className="text-sm font-medium text-foreground">Χρήση αυτού του μήνα</h4>
+                  
+                  {/* Discoveries Used */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Database className="w-4 h-4" />
+                        Discoveries χρησιμοποιημένα
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {usage.datasets_created_this_month || 0} / {planLimits.discoveriesPerMonth === Infinity ? '∞' : planLimits.discoveriesPerMonth}
+                      </span>
+                    </div>
+                    {planLimits.discoveriesPerMonth !== Infinity && (
+                      <Progress 
+                        value={Math.min(((usage.datasets_created_this_month || 0) / planLimits.discoveriesPerMonth) * 100, 100)} 
+                        className="h-2"
+                      />
+                    )}
+                  </div>
+
+                  {/* Exports Used */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <FileDown className="w-4 h-4" />
+                        Exports χρησιμοποιημένα
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {usage.exports_this_month || 0} / {planLimits.exportsPerMonth === Infinity ? '∞' : planLimits.exportsPerMonth}
+                      </span>
+                    </div>
+                    {planLimits.exportsPerMonth !== Infinity && (
+                      <Progress 
+                        value={Math.min(((usage.exports_this_month || 0) / planLimits.exportsPerMonth) * 100, 100)} 
+                        className="h-2"
+                      />
+                    )}
+                  </div>
+
+                  {/* Businesses Exported */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Download className="w-4 h-4" />
+                        Επιχειρήσεις που εξήχθησαν
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {businessesExported.toLocaleString()}
+                      </span>
+                    </div>
+                    {planLimits.maxExportSize !== Infinity && (
+                      <Progress 
+                        value={Math.min((businessesExported / planLimits.maxExportSize) * 100, 100)} 
+                        className="h-2"
+                      />
+                    )}
+                  </div>
                 </div>
               )}
             </>
@@ -304,115 +389,104 @@ function BillingPageInner() {
         </CardContent>
         {subscription && subscription.status === 'active' && (
           <CardFooter className="flex gap-3">
-            <Button variant="outline">Cancel Subscription</Button>
-            <Button variant="outline">Update Payment Method</Button>
+            <Button variant="outline">Ακύρωση Συνδρομής</Button>
+            <Button variant="outline">Ενημέρωση Μεθόδου Πληρωμής</Button>
           </CardFooter>
         )}
       </Card>
 
       {/* Pricing Plans */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Available Plans</h2>
+        <h2 className="text-lg font-semibold text-foreground">Διαθέσιμα Πακέτα</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => {
-            const isCurrent = user?.plan === plan.id
+            const isCurrent = userPlanId === plan.id
             return (
-            <Card
-              key={plan.id}
-              className={cn(
-                "bg-card relative",
-                isCurrent ? "border-primary border-2" : "border-border"
-              )}
-            >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                  Recommended
-                </div>
-              )}
-              {isCurrent && (
-                <div className="absolute -top-3 right-4 px-3 py-1 bg-success text-success-foreground text-xs font-medium rounded-full">
-                  Current
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="text-card-foreground">{plan.name}</CardTitle>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-card-foreground">{plan.price}</span>
-                  <span className="text-muted-foreground">{plan.period}</span>
-                </div>
-                <CardDescription>{plan.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CheckCircle className="w-4 h-4 text-accent shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                {isCurrent ? (
-                  <Button variant="outline" className="w-full bg-transparent" disabled>
-                    Current Plan
-                  </Button>
-                ) : plan.id === "agency" ? (
-                  <Button 
-                    variant="outline" 
-                    className="w-full bg-transparent"
-                    onClick={() => handleCheckout(plan.id)}
-                    disabled={loading[plan.id]}
-                  >
-                    {loading[plan.id] ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4 mr-2" />
-                        Upgrade
-                      </>
-                    )}
-                  </Button>
-                ) : plan.id === "snapshot" ? (
-                  <Button 
-                    variant="outline" 
-                    className="w-full bg-transparent"
-                    onClick={() => handleCheckout(plan.id)}
-                    disabled={loading[plan.id]}
-                  >
-                    {loading[plan.id] ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      "Buy One-Time"
-                    )}
-                  </Button>
-                ) : (
-                  <Button 
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                    onClick={() => handleCheckout(plan.id)}
-                    disabled={loading[plan.id]}
-                  >
-                    {loading[plan.id] ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4 mr-2" />
-                        Upgrade
-                      </>
-                    )}
-                  </Button>
+              <Card
+                key={plan.id}
+                className={cn(
+                  "bg-card relative",
+                  isCurrent ? "border-primary border-2" : "border-border"
                 )}
-              </CardFooter>
-            </Card>
+              >
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
+                    Προτεινόμενο
+                  </div>
+                )}
+                {isCurrent && (
+                  <div className="absolute -top-3 right-4 px-3 py-1 bg-success text-success-foreground text-xs font-medium rounded-full">
+                    Τρέχον
+                  </div>
+                )}
+                <CardHeader>
+                  <CardTitle className="text-card-foreground">{plan.name}</CardTitle>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-card-foreground">{plan.price}</span>
+                    <span className="text-muted-foreground">{plan.period}</span>
+                  </div>
+                  <CardDescription>{plan.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {plan.footnote && (
+                    <p className="text-xs text-muted-foreground mt-4 italic">
+                      {plan.footnote}
+                    </p>
+                  )}
+                </CardContent>
+                <CardFooter>
+                  {isCurrent ? (
+                    <Button variant="outline" className="w-full bg-transparent" disabled>
+                      Τρέχον Πακέτο
+                    </Button>
+                  ) : plan.id === "agency" ? (
+                    <Button 
+                      variant="outline" 
+                      className="w-full bg-transparent"
+                      onClick={() => handleCheckout(plan.id)}
+                      disabled={loading[plan.id]}
+                    >
+                      {loading[plan.id] ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Επεξεργασία...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4 mr-2" />
+                          Αναβάθμιση
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                      onClick={() => handleCheckout(plan.id)}
+                      disabled={loading[plan.id]}
+                    >
+                      {loading[plan.id] ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Επεξεργασία...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4 mr-2" />
+                          Αναβάθμιση
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
             )
           })}
         </div>
@@ -421,8 +495,8 @@ function BillingPageInner() {
       {/* Invoices */}
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-card-foreground">Invoice History</CardTitle>
-          <CardDescription>Download your past invoices</CardDescription>
+          <CardTitle className="text-card-foreground">Ιστορικό Τιμολογίων</CardTitle>
+          <CardDescription>Κατεβάστε τα προηγούμενα τιμολόγιά σας</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingData ? (
@@ -432,17 +506,17 @@ function BillingPageInner() {
               ))}
             </div>
           ) : invoices.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No invoices yet</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Δεν υπάρχουν τιμολόγια ακόμα</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">Invoice</TableHead>
-                    <TableHead className="text-muted-foreground">Date</TableHead>
-                    <TableHead className="text-muted-foreground">Amount</TableHead>
-                    <TableHead className="text-muted-foreground">Status</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Download</TableHead>
+                    <TableHead className="text-muted-foreground">Τιμολόγιο</TableHead>
+                    <TableHead className="text-muted-foreground">Ημερομηνία</TableHead>
+                    <TableHead className="text-muted-foreground">Ποσό</TableHead>
+                    <TableHead className="text-muted-foreground">Κατάσταση</TableHead>
+                    <TableHead className="text-muted-foreground text-right">Λήψη</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -450,7 +524,7 @@ function BillingPageInner() {
                     <TableRow key={invoice.id} className="border-border hover:bg-muted/50">
                       <TableCell className="font-medium text-foreground">{invoice.invoice_number}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(invoice.date).toLocaleDateString("en-US", {
+                        {new Date(invoice.date).toLocaleDateString("el-GR", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
@@ -465,7 +539,9 @@ function BillingPageInner() {
                           invoice.status === 'pending' ? "bg-warning/10 text-warning border-warning/20" :
                           "bg-destructive/10 text-destructive border-destructive/20"
                         )}>
-                          {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                          {invoice.status === 'paid' ? 'Πληρωμένο' : 
+                           invoice.status === 'pending' ? 'Εκκρεμές' : 
+                           invoice.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">

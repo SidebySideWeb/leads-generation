@@ -117,46 +117,82 @@ export default function DiscoverPage() {
       try {
         // First, try to get discovery run results with cost estimates
         const resultsRes = await api.getDiscoveryRunResults(runId)
-        if (resultsRes.data && resultsRes.data.status === 'completed' && resultsRes.data.cost_estimates) {
-          // Discovery completed with cost estimates
-          const estimates = resultsRes.data.cost_estimates
-          setCostEstimates(estimates)
+        
+        // Check if discovery is completed or failed - stop polling in either case
+        if (resultsRes.data && (resultsRes.data.status === 'completed' || resultsRes.data.status === 'failed')) {
+          // Discovery completed (or failed) - stop polling
+          setPolling(false)
           
-          // Get datasets to find the one created by this discovery run
-          const datasetsRes = await api.getDatasets()
-          if (datasetsRes.data && datasetsRes.data.length > 0) {
-            // Find the most recent dataset (should be the one just created)
-            const latestDataset = datasetsRes.data[0]
+          // If we have cost estimates, use them
+          if (resultsRes.data.cost_estimates) {
+            const estimates = resultsRes.data.cost_estimates
+            setCostEstimates(estimates)
             
-            // Get sample businesses from this dataset
-            const businessesRes = await api.getBusinesses(latestDataset.id, { limit: 10 })
-            if (businessesRes.data && businessesRes.data.length > 0) {
-              const businesses = businessesRes.data
+            // Get datasets to find the one created by this discovery run
+            const datasetsRes = await api.getDatasets()
+            if (datasetsRes.data && datasetsRes.data.length > 0) {
+              // Find the most recent dataset (should be the one just created)
+              const latestDataset = datasetsRes.data[0]
               
-              setPreviewData({
-                businesses: businesses.slice(0, 10), // Sample of 10
-                totalBusinesses: estimates.estimatedBusinesses,
-                withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
-                withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
-                withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
+              // Get sample businesses from this dataset
+              const businessesRes = await api.getBusinesses(latestDataset.id, { limit: 10 })
+              if (businessesRes.data && businessesRes.data.length > 0) {
+                const businesses = businessesRes.data
+                
+                setPreviewData({
+                  businesses: businesses.slice(0, 10), // Sample of 10
+                  totalBusinesses: estimates.estimatedBusinesses,
+                  withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
+                  withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
+                  withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
+                })
+              } else {
+                // No businesses yet, but we have estimates
+                setPreviewData({
+                  businesses: [],
+                  totalBusinesses: estimates.estimatedBusinesses,
+                  withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
+                  withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
+                  withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
+                })
+              }
+            }
+          } else {
+            // Discovery completed but no cost estimates (might be 0 businesses or error)
+            // Still try to get businesses from the dataset
+            const datasetsRes = await api.getDatasets()
+            if (datasetsRes.data && datasetsRes.data.length > 0) {
+              const latestDataset = datasetsRes.data[0]
+              const businessesRes = await api.getBusinesses(latestDataset.id, { limit: 10 })
+              if (businessesRes.data && businessesRes.data.length > 0) {
+                setPreviewData({
+                  businesses: businessesRes.data.slice(0, 10),
+                  totalBusinesses: businessesRes.meta.total_available || 0,
+                  withWebsite: 0,
+                  withEmail: 0,
+                  withPhone: 0,
+                })
+              }
+            }
+            
+            if (resultsRes.data.status === 'failed') {
+              toast({
+                title: "Discovery failed",
+                description: "The discovery process encountered an error. Please try again.",
+                variant: "destructive",
               })
             } else {
-              // No businesses yet, but we have estimates
-              setPreviewData({
-                businesses: [],
-                totalBusinesses: estimates.estimatedBusinesses,
-                withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
-                withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
-                withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
+              toast({
+                title: "Discovery completed",
+                description: "Check your datasets to see the results.",
               })
             }
           }
           
-          setPolling(false)
           return
         }
         
-        // Still running or not completed yet
+        // Still running - continue polling
         attempts++
         if (attempts < maxAttempts) {
           setTimeout(poll, 10000) // Poll every 10 seconds

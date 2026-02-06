@@ -150,30 +150,47 @@ export default function ExportsPage() {
     }
 
     try {
-      // If download_url is a full URL, use it directly
-      if (exportItem.download_url.startsWith('http')) {
-        window.open(exportItem.download_url, '_blank')
-      } else {
-        // Otherwise, try to fetch from backend
-        const response = await fetch(exportItem.download_url, {
-          credentials: 'include',
-        })
-        if (response.ok) {
-          const blob = await response.blob()
-          const url = window.URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `export-${exportItem.id}.${exportItem.format}`
-          document.body.appendChild(a)
-          a.click()
-          window.URL.revokeObjectURL(url)
-          document.body.removeChild(a)
-        }
+      // Always use fetch to ensure cookies are sent for authentication
+      const response = await fetch(exportItem.download_url, {
+        credentials: 'include',
+        method: 'GET',
+      })
+      
+      if (!response.ok) {
+        // If response is not OK, try to get error message
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Download failed with status ${response.status}`)
       }
+
+      // Get the blob from response
+      const blob = await response.blob()
+      
+      // Create a temporary URL for the blob
+      const url = window.URL.createObjectURL(blob)
+      
+      // Create a temporary anchor element and trigger download
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `export-${exportItem.id}.${exportItem.format}`
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+      
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }, 100)
+
+      toast({
+        title: "Download started",
+        description: "Your export file is being downloaded",
+      })
     } catch (error) {
+      console.error('Download error:', error)
       toast({
         title: "Download failed",
-        description: "Could not download the export file",
+        description: error instanceof Error ? error.message : "Could not download the export file",
         variant: "destructive",
       })
     }

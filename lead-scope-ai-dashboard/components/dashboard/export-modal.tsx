@@ -126,8 +126,7 @@ export function ExportModal({ open, onOpenChange, dataset, onComplete }: ExportM
 
     setLoading(true)
     try {
-      // Send export request with size and refresh options
-      // Note: Backend may not fully support these parameters yet, but frontend is ready
+      // Send export request - returns immediately with export ID
       const response = await api.runExport(dataset.id, 'csv', {
         size: selectedSize,
         refresh: refreshOption,
@@ -143,21 +142,21 @@ export function ExportModal({ open, onOpenChange, dataset, onComplete }: ExportM
         return
       }
 
-      // Handle file download
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `export-${dataset.id}-${Date.now()}.csv`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      // Parse response to get export ID
+      const exportData = await response.json().catch(() => null)
+      const exportId = exportData?.id
 
-      toast({
-        title: "Export created",
-        description: `Your export of ${selectedSize} businesses has been downloaded`,
-      })
+      if (!exportId) {
+        toast({
+          title: "Export created",
+          description: "Export job created. Check the exports page for status.",
+        })
+      } else {
+        toast({
+          title: "Export job created",
+          description: "Your export is being processed. Check the exports page for status.",
+        })
+      }
 
       onOpenChange(false)
       if (onComplete) {

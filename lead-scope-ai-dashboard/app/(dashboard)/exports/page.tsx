@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,7 @@ export default function ExportsPage() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null)
+  const [pollingExports, setPollingExports] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
   // Load exports and datasets on mount
@@ -63,7 +64,51 @@ export default function ExportsPage() {
     loadDatasets()
   }, [])
 
-  const loadExports = async () => {
+  // Poll for processing exports
+  useEffect(() => {
+    if (pollingExports.size === 0) return
+
+    const interval = setInterval(async () => {
+      const processingExports = exports?.filter(e => e.status === 'processing') || []
+      if (processingExports.length === 0) {
+        setPollingExports(new Set())
+        return
+      }
+
+      // Check status for each processing export
+      for (const exportItem of processingExports) {
+        try {
+          const statusResponse = await api.getExportStatus(exportItem.id)
+          if (statusResponse.data) {
+            const newStatus = statusResponse.data.status
+            if (newStatus === 'completed') {
+              // Reload exports to get updated data
+              await loadExports()
+              setPollingExports(prev => {
+                const next = new Set(prev)
+                next.delete(exportItem.id)
+                return next
+              })
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking status for export ${exportItem.id}:`, error)
+        }
+      }
+    }, 3000) // Poll every 3 seconds
+
+    return () => clearInterval(interval)
+  }, [pollingExports, exports])
+
+  // Start polling when new processing exports are detected
+  useEffect(() => {
+    const processingIds = exports?.filter(e => e.status === 'processing').map(e => e.id) || []
+    if (processingIds.length > 0) {
+      setPollingExports(new Set(processingIds))
+    }
+  }, [exports])
+
+  const loadExports = useCallback(async () => {
     try {
       setLoading(true)
       const response = await api.getExports()
@@ -81,7 +126,7 @@ export default function ExportsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   const loadDatasets = async () => {
     try {
@@ -325,8 +370,12 @@ export default function ExportsPage() {
                   </TableHeader>
                   <TableBody>
                     {exports.map((exportItem) => {
-                      const StatusIcon = statusConfig.completed.icon
-                      const status = "completed"
+                      // Determine status: 'processing' if status is processing or no download_url
+                      const status = exportItem.status || (exportItem.download_url ? 'completed' : 'processing')
+                      const StatusConfig = statusConfig[status as keyof typeof statusConfig] || statusConfig.processing
+                      const StatusIcon = StatusConfig.icon
+                      const isProcessing = status === 'processing'
+                      
                       return (
                         <TableRow key={exportItem.id} className="border-border hover:bg-muted/50">
                           <TableCell className="text-muted-foreground">
@@ -342,8 +391,13 @@ export default function ExportsPage() {
                                   {exportItem.total_rows.toLocaleString()} rows
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  Export completed
+                                  {isProcessing ? 'Processing...' : 'Export completed'}
                                 </div>
+                              </div>
+                            ) : isProcessing ? (
+                              <div className="text-right">
+                                <Loader2 className="w-4 h-4 animate-spin inline-block text-primary" />
+                                <div className="text-xs text-muted-foreground mt-1">Processing...</div>
                               </div>
                             ) : "—"}
                           </TableCell>
@@ -359,14 +413,24 @@ export default function ExportsPage() {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={cn("flex items-center gap-1 w-fit", statusConfig[status as keyof typeof statusConfig].className)}
+                              className={cn("flex items-center gap-1 w-fit", StatusConfig.className)}
                             >
                               <StatusIcon className="w-3 h-3" />
-                              {statusConfig[status as keyof typeof statusConfig].label}
+                              {StatusConfig.label}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {exportItem.download_url ? (
+                            {isProcessing ? (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8" 
+                                disabled
+                              >
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                Processing...
+                              </Button>
+                            ) : exportItem.download_url ? (
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
@@ -377,7 +441,7 @@ export default function ExportsPage() {
                                 Download
                               </Button>
                             ) : (
-                              <span className="text-xs text-muted-foreground">Processing...</span>
+                              <span className="text-xs text-muted-foreground">Not available</span>
                             )}
                           </TableCell>
                         </TableRow>

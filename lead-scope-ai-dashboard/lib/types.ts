@@ -117,6 +117,7 @@ export interface ExportResult {
   rows_total: number; // Total rows available
   file_path: string;
   download_url: string | null;
+  status?: 'processing' | 'completed' | 'failed'; // Export processing status
   created_at: string;
   expires_at: string | null;
 }

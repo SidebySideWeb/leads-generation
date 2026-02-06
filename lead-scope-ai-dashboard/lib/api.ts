@@ -520,6 +520,15 @@ class ApiClient {
   }
 
   /**
+   * Check export status
+   * @param exportId - Export ID
+   * @returns Promise with export status
+   */
+  async getExportStatus(exportId: string): Promise<{ data: { status: 'processing' | 'completed'; total_rows: number; format: string; download_available: boolean } | null; meta: ResponseMeta }> {
+    return this.request<{ status: 'processing' | 'completed'; total_rows: number; format: string; download_available: boolean }>(`/exports/${exportId}/status`);
+  }
+
+  /**
    * Create Stripe checkout session
    * @param planId - Plan ID (snapshot, professional, agency)
    * @param userId - User ID (not used, authenticated user ID is used server-side)

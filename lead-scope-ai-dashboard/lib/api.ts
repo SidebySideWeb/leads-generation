@@ -1070,6 +1070,147 @@ class ApiClient {
       } | null;
     }>>(`/businesses/dataset/${datasetId}/contacts`);
   }
+
+  /**
+   * Get current credit balance
+   */
+  async getCredits(): Promise<{ data: { credits: number; currency: string } | null; meta: ResponseMeta }> {
+    return this.request<{ credits: number; currency: string }>('/billing/credits');
+  }
+
+  /**
+   * Get current usage statistics
+   */
+  async getBillingUsage(): Promise<{
+    data: {
+      usage: {
+        crawls: number;
+        exports: number;
+        datasets: number;
+      };
+      limits: {
+        crawls: number | null;
+        exports: number | null;
+        datasets: number | null;
+        businessesPerDataset: number | null;
+      };
+      consumptionByFeature: Array<{
+        feature: string;
+        credits: number;
+      }>;
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      usage: {
+        crawls: number;
+        exports: number;
+        datasets: number;
+      };
+      limits: {
+        crawls: number | null;
+        exports: number | null;
+        datasets: number | null;
+        businessesPerDataset: number | null;
+      };
+      consumptionByFeature: Array<{
+        feature: string;
+        credits: number;
+      }>;
+    }>('/billing/usage');
+  }
+
+  /**
+   * Get subscription information
+   */
+  async getBillingSubscription(): Promise<{
+    data: {
+      plan: string;
+      subscription: {
+        id: string;
+        status: string;
+        current_period_start: string | null;
+        current_period_end: string | null;
+        canceled_at: string | null;
+      } | null;
+      limits: {
+        credits: number;
+        crawls: number | null;
+        exports: number | null;
+        datasets: number | null;
+        businessesPerDataset: number | null;
+      };
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      plan: string;
+      subscription: {
+        id: string;
+        status: string;
+        current_period_start: string | null;
+        current_period_end: string | null;
+        canceled_at: string | null;
+      } | null;
+      limits: {
+        credits: number;
+        crawls: number | null;
+        exports: number | null;
+        datasets: number | null;
+        businessesPerDataset: number | null;
+      };
+    }>('/billing/subscription');
+  }
+
+  /**
+   * Create Stripe checkout session for plan upgrade
+   */
+  async createBillingCheckout(planId: string): Promise<{
+    data: { url: string; sessionId: string } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{ url: string; sessionId: string }>('/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId }),
+    });
+  }
+
+  /**
+   * Create Stripe checkout session for credit purchase
+   */
+  async buyCredits(creditPackage: string): Promise<{
+    data: { url: string; sessionId: string; credits: number } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{ url: string; sessionId: string; credits: number }>('/billing/buy-credits', {
+      method: 'POST',
+      body: JSON.stringify({ creditPackage }),
+    });
+  }
+
+  /**
+   * Get credit cost configuration
+   */
+  async getCreditCosts(): Promise<{
+    data: {
+      costs: {
+        discoveryBusiness: number;
+        websiteCrawl: number;
+        emailExtraction: number;
+        exportRow: number;
+      };
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      costs: {
+        discoveryBusiness: number;
+        websiteCrawl: number;
+        emailExtraction: number;
+        exportRow: number;
+      };
+    }>('/billing/credit-costs');
+  }
 }
 
 // Export singleton instance

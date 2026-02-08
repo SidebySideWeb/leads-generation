@@ -13,8 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Progress } from "@/components/ui/progress"
-import { CheckCircle, Download, Loader2, Zap, Info, Database, FileDown, RefreshCw } from "lucide-react"
+import { CheckCircle, Download, Loader2, Zap, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
@@ -22,6 +21,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 import type { Subscription, UsageData, Invoice } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CreditDashboard } from "@/components/dashboard/credit-dashboard"
+import { CreditPurchaseModal } from "@/components/dashboard/credit-purchase-modal"
+import { useBilling } from "@/contexts/BillingContext"
 
 // Plan configuration matching requirements
 const plans = [
@@ -114,6 +116,7 @@ function BillingPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
+  const { data: billingData, refetch: refetchBilling } = useBilling()
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [usage, setUsage] = useState<UsageData | null>(null)
@@ -121,6 +124,7 @@ function BillingPageInner() {
   const [user, setUser] = useState<{ id: string; email: string; plan: string } | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [businessesExported, setBusinessesExported] = useState<number>(0)
+  const [showCreditModal, setShowCreditModal] = useState(false)
 
   useEffect(() => {
     // Handle Stripe redirect
@@ -129,11 +133,20 @@ function BillingPageInner() {
     const sessionId = searchParams.get('session_id')
 
     if (success && sessionId) {
-      toast({
-        title: "Payment successful",
-        description: "Your subscription has been activated.",
-      })
+      const credits = searchParams.get('credits')
+      if (credits) {
+        toast({
+          title: "Credits purchased",
+          description: `You've successfully purchased ${credits} credits.`,
+        })
+      } else {
+        toast({
+          title: "Payment successful",
+          description: "Your subscription has been activated.",
+        })
+      }
       loadData()
+      refetchBilling()
       router.replace('/billing')
     } else if (canceled) {
       toast({
@@ -262,9 +275,32 @@ function BillingPageInner() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Billing & Plans</h1>
         <p className="text-sm text-muted-foreground">
-          Διαχείριση συνδρομής και προβολή ιστορικού χρέωσης
+          Manage your subscription, credits, and view billing history
         </p>
       </div>
+
+      {/* Credit Dashboard */}
+      <CreditDashboard />
+
+      {/* Buy Credits CTA */}
+      {billingData && billingData.credits < 50 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">Low on Credits?</h3>
+                <p className="text-sm text-muted-foreground">
+                  Purchase additional credits to continue using the platform
+                </p>
+              </div>
+              <Button onClick={() => setShowCreditModal(true)}>
+                <Zap className="w-4 h-4 mr-2" />
+                Buy Credits
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pricing Explanation Block */}
       <Alert className="bg-primary/5 border-primary/20">
@@ -567,6 +603,8 @@ function BillingPageInner() {
           )}
         </CardContent>
       </Card>
+
+      <CreditPurchaseModal open={showCreditModal} onOpenChange={setShowCreditModal} />
     </div>
   )
 }

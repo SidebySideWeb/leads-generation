@@ -33,6 +33,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { CostEstimates } from "@/lib/types"
+import { useBilling } from "@/contexts/BillingContext"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { CreditPurchaseModal } from "@/components/dashboard/credit-purchase-modal"
 
 export default function DiscoverPage() {
   const [selectedIndustry, setSelectedIndustry] = useState("")
@@ -68,6 +78,10 @@ export default function DiscoverPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { permissions } = usePermissions()
+  const { data: billingData, estimateDiscoveryCost, hasEnoughCredits, isNearLimit } = useBilling()
+  const [showCreditModal, setShowCreditModal] = useState(false)
+  const [showCostConfirm, setShowCostConfirm] = useState(false)
+  const [estimatedCost, setEstimatedCost] = useState(0)
   
   // Check if discovery is allowed (for UI display only - backend always enforces)
   const discoveryCheck = canPerformAction(permissions, 'dataset')
@@ -238,6 +252,46 @@ export default function DiscoverPage() {
       return
     }
 
+    // Check billing limits
+    if (billingData) {
+      // Check crawl limit
+      if (isNearLimit('crawls')) {
+        toast({
+          title: "Discovery limit reached",
+          description: "You've reached your monthly discovery limit. Please upgrade your plan or wait for next month.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Estimate cost (rough estimate: 50-200 businesses per discovery)
+      const estimatedBusinesses = 100 // Conservative estimate
+      const cost = estimateDiscoveryCost(estimatedBusinesses)
+      setEstimatedCost(cost)
+
+      // Check if user has enough credits
+      if (!hasEnoughCredits(cost)) {
+        toast({
+          title: "Insufficient credits",
+          description: `You need ${cost} credits to start discovery, but you only have ${billingData.credits}.`,
+          variant: "destructive",
+        })
+        setShowCreditModal(true)
+        return
+      }
+
+      // Show cost confirmation if cost is significant
+      if (cost > 10) {
+        setShowCostConfirm(true)
+        return
+      }
+    }
+
+    // Proceed with discovery
+    await startDiscovery()
+  }
+
+  const startDiscovery = async () => {
     setLoading(true)
 
     try {
@@ -626,6 +680,46 @@ export default function DiscoverPage() {
           </ul>
         </CardContent>
       </Card>
+
+      {/* Cost Confirmation Dialog */}
+      <Dialog open={showCostConfirm} onOpenChange={setShowCostConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Discovery Cost</DialogTitle>
+            <DialogDescription>
+              This discovery will consume approximately {estimatedCost} credits.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Estimated cost:</span>
+                <span className="font-medium">{estimatedCost} credits</span>
+              </div>
+              {billingData && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Your balance:</span>
+                  <span className="font-medium">{billingData.credits} credits</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCostConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setShowCostConfirm(false)
+              startDiscovery()
+            }}>
+              Confirm & Start
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credit Purchase Modal */}
+      <CreditPurchaseModal open={showCreditModal} onOpenChange={setShowCreditModal} />
     </div>
   )
 }

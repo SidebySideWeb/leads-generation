@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { CheckCircle, Download, Loader2, Zap, Info } from "lucide-react"
+import { CheckCircle, Download, Loader2, Zap, Info, Database, FileDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 import type { Subscription, UsageData, Invoice } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Progress } from "@/components/ui/progress"
 import { CreditDashboard } from "@/components/dashboard/credit-dashboard"
 import { CreditPurchaseModal } from "@/components/dashboard/credit-purchase-modal"
 import { useBilling } from "@/contexts/BillingContext"

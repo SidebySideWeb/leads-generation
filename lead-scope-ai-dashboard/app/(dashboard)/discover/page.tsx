@@ -499,13 +499,19 @@ export default function DiscoverPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {business.email && (
-                          <Mail className="w-4 h-4 text-green-500" title="Has email" />
+                          <div title="Has email">
+                            <Mail className="w-4 h-4 text-green-500" />
+                          </div>
                         )}
                         {business.phone && (
-                          <Phone className="w-4 h-4 text-green-500" title="Has phone" />
+                          <div title="Has phone">
+                            <Phone className="w-4 h-4 text-green-500" />
+                          </div>
                         )}
                         {business.website && (
-                          <Globe className="w-4 h-4 text-blue-500" title="Has website" />
+                          <div title="Has website">
+                            <Globe className="w-4 h-4 text-blue-500" />
+                          </div>
                         )}
                         {!business.email && !business.phone && (
                           <span className="text-xs text-muted-foreground">No contacts</span>

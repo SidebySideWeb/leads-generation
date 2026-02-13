@@ -563,8 +563,11 @@ class ApiClient {
    * @returns Promise with discovery run ID
    */
   async startGemiDiscovery(input: {
-    city_id: string;
-    industry_id: string;
+    municipality_gemi_id?: number;
+    industry_gemi_id?: number;
+    municipality_id?: string; // Legacy support
+    industry_id?: string; // Legacy support
+    city_id?: string; // Legacy support
     dataset_id?: string;
   }): Promise<{ data: Array<{ id: string; status: string; created_at: string }> | null; meta: ResponseMeta }> {
     const result = await this.request<Array<{ id: string; status: string; created_at: string }>>('/api/discovery', {

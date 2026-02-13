@@ -154,6 +154,7 @@ export interface Export {
 export interface Industry {
   id: string; // UUID, not a number
   name: string;
+  gemi_id?: number | string; // GEMI ID (number from API, may be string in some contexts)
 }
 
 export interface City {

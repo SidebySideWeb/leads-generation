@@ -232,11 +232,33 @@ export default function DiscoverPage() {
 
     setLoading(true)
     try {
-      // Note: Backend expects city_id, but we're passing municipality_id
-      // Backend will handle the mapping
+      // Get gemi_id values from selected items
+      const selectedMunicipalityObj = municipalities.find(m => m.id === selectedMunicipality)
+      const selectedIndustryObj = industries.find(i => i.id === selectedIndustry)
+      
+      if (!selectedMunicipalityObj || !selectedIndustryObj) {
+        throw new Error('Selected municipality or industry not found')
+      }
+      
+      // Use gemi_id values (preferred) for GEMI API discovery
+      const municipalityGemiId = selectedMunicipalityObj.gemi_id 
+        ? (typeof selectedMunicipalityObj.gemi_id === 'string' 
+            ? parseInt(selectedMunicipalityObj.gemi_id, 10) 
+            : selectedMunicipalityObj.gemi_id)
+        : undefined
+      
+      const industryGemiId = selectedIndustryObj.gemi_id
+        ? (typeof selectedIndustryObj.gemi_id === 'string'
+            ? parseInt(selectedIndustryObj.gemi_id, 10)
+            : selectedIndustryObj.gemi_id)
+        : undefined
+      
       const res = await api.startGemiDiscovery({
-        city_id: selectedMunicipality, // Backend will map municipality to city
-        industry_id: selectedIndustry,
+        municipality_gemi_id: municipalityGemiId,
+        industry_gemi_id: industryGemiId,
+        // Fallback to internal IDs if gemi_id not available
+        municipality_id: municipalityGemiId ? undefined : selectedMunicipality,
+        industry_id: industryGemiId ? undefined : selectedIndustry,
       })
 
       if (res.data && res.data.length > 0) {

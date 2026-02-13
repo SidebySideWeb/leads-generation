@@ -50,10 +50,14 @@ export class NetworkError extends Error {
  * API client class
  */
 class ApiClient {
-  private baseUrl: string;
+  private _baseUrl: string;
+  
+  public get baseUrl(): string {
+    return this._baseUrl;
+  }
 
   constructor() {
-    this.baseUrl = getBaseUrl();
+    this._baseUrl = getBaseUrl();
   }
 
   /**
@@ -65,7 +69,7 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<{ data: T | null; meta: ResponseMeta }> {
-    const url = `${this.baseUrl}${endpoint}`;
+      const url = `${this._baseUrl}${endpoint}`;
     
     // Server-safe: AbortController is available in Node.js 15+
     const controller = typeof AbortController !== 'undefined' 
@@ -113,8 +117,22 @@ class ApiClient {
           ...options.headers,
         },
       });
-      
+
       console.log('[API] ===== FETCH RESPONSE RECEIVED =====');
+
+      // Handle rate limit (429) before other error handling
+      if (response.status === 429) {
+        return {
+          data: (null as unknown) as T,
+          meta: {
+            plan_id: 'demo',
+            gated: true,
+            gate_reason: 'GEMI Registry is processing requests. Please wait...',
+            total_available: 0,
+            total_returned: 0,
+          },
+        };
+      }
       console.log('[API] Response status:', response.status, response.statusText);
       console.log('[API] Response headers:', Object.fromEntries(response.headers.entries()));
 
@@ -247,8 +265,8 @@ class ApiClient {
     console.log('[API] ===== DISCOVERY REQUEST START =====');
     console.log('[API] discoverBusinesses called with:', input);
     console.log('[API] Request body will be:', JSON.stringify(input));
-    console.log('[API] Base URL:', this.baseUrl);
-    console.log('[API] Full URL will be:', `${this.baseUrl}/discovery/businesses`);
+      console.log('[API] Base URL:', this._baseUrl);
+      console.log('[API] Full URL will be:', `${this._baseUrl}/discovery/businesses`);
     
     const result = await this.request<Business[]>('/discovery/businesses', {
       method: 'POST',
@@ -410,7 +428,7 @@ class ApiClient {
     }
   ): Promise<Response> {
     // Call backend directly (backend route is /exports/run)
-    const url = `${this.baseUrl}/exports/run`;
+    const url = `${this._baseUrl}/exports/run`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -498,6 +516,74 @@ class ApiClient {
   }
 
   /**
+   * Get prefectures (regions) from GEMI metadata
+   * @returns Promise with prefectures and metadata
+   */
+  async getPrefectures(): Promise<{ data: Array<{ id: string; descr: string; descr_en: string; gemi_id: string }> | null; meta: ResponseMeta }> {
+    return this.request<Array<{ id: string; descr: string; descr_en: string; gemi_id: string }>>('/api/metadata/prefectures');
+  }
+
+  /**
+   * Get municipalities (towns) from GEMI metadata
+   * @param prefectureId - Optional prefecture ID to filter municipalities
+   * @returns Promise with municipalities and metadata
+   */
+  async getMunicipalities(prefectureId?: string): Promise<{ data: Array<{ id: string; descr: string; descr_en: string; gemi_id: string; prefecture_id: string }> | null; meta: ResponseMeta }> {
+    const endpoint = prefectureId 
+      ? `/api/metadata/municipalities?prefecture_id=${prefectureId}`
+      : '/api/metadata/municipalities';
+    return this.request<Array<{ id: string; descr: string; descr_en: string; gemi_id: string; prefecture_id: string }>>(endpoint);
+  }
+
+  /**
+   * Search businesses by filters
+   * @param params - Search parameters (municipality_id, industry_id, prefecture_id, page, limit)
+   * @returns Promise with businesses and metadata
+   */
+  async searchBusinesses(params: {
+    municipality_id?: string;
+    industry_id?: string;
+    prefecture_id?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: Business[] | null; meta: ResponseMeta & { total_count?: number; total_pages?: number } }> {
+    const queryParams = new URLSearchParams();
+    if (params.municipality_id) queryParams.append('municipality_id', params.municipality_id);
+    if (params.industry_id) queryParams.append('industry_id', params.industry_id);
+    if (params.prefecture_id) queryParams.append('prefecture_id', params.prefecture_id);
+    if (params.page) queryParams.append('page', String(params.page));
+    if (params.limit) queryParams.append('limit', String(params.limit));
+    
+    return this.request<Business[]>(`/api/search?${queryParams.toString()}`);
+  }
+
+  /**
+   * Start GEMI discovery (deep discovery)
+   * @param input - Discovery input parameters
+   * @returns Promise with discovery run ID
+   */
+  async startGemiDiscovery(input: {
+    city_id: string;
+    industry_id: string;
+    dataset_id?: string;
+  }): Promise<{ data: Array<{ id: string; status: string; created_at: string }> | null; meta: ResponseMeta }> {
+    const result = await this.request<Array<{ id: string; status: string; created_at: string }>>('/api/discovery', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    
+    // Check for rate limit in meta and throw error for better error handling
+    if (result.meta.gated && result.meta.gate_reason?.includes('GEMI')) {
+      const error = new Error(result.meta.gate_reason);
+      (error as any).meta = result.meta;
+      throw error;
+    }
+    
+    return result;
+  }
+
+
+  /**
    * Get cities list
    * @param countryCode - Optional country code filter
    * @returns Promise with cities and metadata
@@ -536,7 +622,7 @@ class ApiClient {
    */
   async createCheckoutSession(planId: string, userId: string): Promise<{ data: { sessionId: string; url: string } | null; meta: ResponseMeta }> {
     // Call Next.js API route (not backend) - it handles Stripe checkout
-    const url = typeof window !== 'undefined' ? '/api/checkout' : `${this.baseUrl}/api/checkout`;
+    const url = typeof window !== 'undefined' ? '/api/checkout' : `${this._baseUrl}/api/checkout`;
     console.log('[API] Creating checkout session for plan:', planId);
     const response = await fetch(url, {
       method: 'POST',
@@ -593,7 +679,7 @@ class ApiClient {
     password: string
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
-      const url = `${this.baseUrl}/api/auth/login`;
+      const url = `${this._baseUrl}/api/auth/login`;
       console.log('[API] Login request to:', url);
       
       const response = await fetch(url, {
@@ -646,7 +732,7 @@ class ApiClient {
     password: string
   ): Promise<{ data: { token?: string } | null; error?: { message: string } }> {
     try {
-      const url = `${this.baseUrl}/api/auth/register`;
+      const url = `${this._baseUrl}/api/auth/register`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -687,7 +773,7 @@ class ApiClient {
   async getCurrentUser(): Promise<{ data: User | null; meta: ResponseMeta }> {
     // Call Next.js API route which proxies to backend
     // This is needed because Next.js can read cookies server-side
-    const url = typeof window !== 'undefined' ? '/api/auth/me' : `${this.baseUrl}/api/auth/me`;
+    const url = typeof window !== 'undefined' ? '/api/auth/me' : `${this._baseUrl}/api/auth/me`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -728,7 +814,7 @@ class ApiClient {
    */
   async getSubscription(): Promise<{ data: Subscription | null; meta: ResponseMeta }> {
     // Call Next.js API route which proxies to backend
-    const url = typeof window !== 'undefined' ? '/api/billing/subscription' : `${this.baseUrl}/api/billing/subscription`;
+    const url = typeof window !== 'undefined' ? '/api/billing/subscription' : `${this._baseUrl}/api/billing/subscription`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -749,7 +835,7 @@ class ApiClient {
    */
   async getUsage(): Promise<{ data: UsageData | null; meta: ResponseMeta }> {
     // Call Next.js API route which proxies to backend
-    const url = typeof window !== 'undefined' ? '/api/billing/usage' : `${this.baseUrl}/api/billing/usage`;
+    const url = typeof window !== 'undefined' ? '/api/billing/usage' : `${this._baseUrl}/api/billing/usage`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -770,7 +856,7 @@ class ApiClient {
    */
   async getInvoices(): Promise<{ data: Invoice[] | null; meta: ResponseMeta }> {
     // Call Next.js API route which proxies to backend
-    const url = typeof window !== 'undefined' ? '/api/billing/invoices' : `${this.baseUrl}/api/billing/invoices`;
+    const url = typeof window !== 'undefined' ? '/api/billing/invoices' : `${this._baseUrl}/api/billing/invoices`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -813,7 +899,7 @@ class ApiClient {
   /**
    * Get discovery run results with cost estimates
    * @param runId - Discovery run UUID
-   * @returns Promise with discovery run results including cost estimates
+   * @returns Promise with discovery run results including cost estimates and business counts
    */
   async getDiscoveryRunResults(runId: string): Promise<{
     data: {
@@ -821,7 +907,10 @@ class ApiClient {
       status: 'running' | 'completed' | 'failed';
       created_at: string;
       completed_at: string | null;
-      cost_estimates: CostEstimates | null;
+      businesses_found?: number;
+      businesses_created?: number;
+      started_at?: string;
+      cost_estimates?: CostEstimates | null;
     } | null;
     meta: ResponseMeta;
   }> {
@@ -830,8 +919,11 @@ class ApiClient {
       status: 'running' | 'completed' | 'failed';
       created_at: string;
       completed_at: string | null;
-      cost_estimates: CostEstimates | null;
-    }>(`/discovery/runs/${runId}/results`);
+      businesses_found?: number;
+      businesses_created?: number;
+      started_at?: string;
+      cost_estimates?: CostEstimates | null;
+    }>(`/api/discovery/runs/${runId}/results`);
   }
 
   /**

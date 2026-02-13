@@ -14,97 +14,82 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Search, Building2, MapPin, Info, CreditCard, Sparkles, Globe, Mail, Phone, Loader2 } from "lucide-react"
+import { Search, Building2, MapPin, Info, Sparkles, Globe, Mail, Phone, Loader2 } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import type { Industry, City, ResponseMeta, Business } from "@/lib/types"
+import type { Industry, ResponseMeta, Business } from "@/lib/types"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { usePermissions } from "@/contexts/PermissionsContext"
 import { canPerformAction } from "@/lib/permissions"
-import { CoverageBadge, calculateCoverageLevel } from "@/components/dashboard/coverage-badge"
-import { CompletenessStats } from "@/components/dashboard/completeness-stats"
-import { ExportCostEstimator } from "@/components/dashboard/export-cost-estimator"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import type { CostEstimates } from "@/lib/types"
-import { useBilling } from "@/contexts/BillingContext"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { CreditPurchaseModal } from "@/components/dashboard/credit-purchase-modal"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+interface Prefecture {
+  id: string
+  descr: string
+  descr_en: string
+  gemi_id: string
+}
+
+interface Municipality {
+  id: string
+  descr: string
+  descr_en: string
+  gemi_id: string
+  prefecture_id: string
+}
 
 export default function DiscoverPage() {
+  const [selectedPrefecture, setSelectedPrefecture] = useState("")
+  const [selectedMunicipality, setSelectedMunicipality] = useState("")
   const [selectedIndustry, setSelectedIndustry] = useState("")
-  const [selectedCity, setSelectedCity] = useState("")
-  const [citySearch, setCitySearch] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [prefectures, setPrefectures] = useState<Prefecture[]>([])
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([])
   const [industries, setIndustries] = useState<Industry[]>([])
-  const [industriesMeta, setIndustriesMeta] = useState<ResponseMeta>({
-    plan_id: 'demo',
-    gated: false,
-    total_available: 0,
-    total_returned: 0,
-  })
-  const [cities, setCities] = useState<City[]>([])
-  const [citiesMeta, setCitiesMeta] = useState<ResponseMeta>({
-    plan_id: 'demo',
-    gated: false,
-    total_available: 0,
-    total_returned: 0,
-  })
   const [loadingData, setLoadingData] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [searching, setSearching] = useState(false)
   const [networkError, setNetworkError] = useState<string | null>(null)
   const [discoveryRunId, setDiscoveryRunId] = useState<string | null>(null)
-  const [previewData, setPreviewData] = useState<{
-    businesses: Business[]
-    totalBusinesses: number
-    withWebsite: number
-    withEmail: number
-    withPhone: number
-  } | null>(null)
-  const [costEstimates, setCostEstimates] = useState<CostEstimates | null>(null)
+  const [searchResults, setSearchResults] = useState<Business[]>([])
+  const [searchMeta, setSearchMeta] = useState<ResponseMeta & { total_count?: number; total_pages?: number }>({
+    plan_id: 'demo',
+    gated: false,
+    total_available: 0,
+    total_returned: 0,
+  })
   const [polling, setPolling] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const { permissions } = usePermissions()
-  const { data: billingData, estimateDiscoveryCost, hasEnoughCredits, isNearLimit } = useBilling()
-  const [showCreditModal, setShowCreditModal] = useState(false)
-  const [showCostConfirm, setShowCostConfirm] = useState(false)
-  const [estimatedCost, setEstimatedCost] = useState(0)
-  
+
   // Check if discovery is allowed (for UI display only - backend always enforces)
   const discoveryCheck = canPerformAction(permissions, 'dataset')
-  // Note: We don't block the action, just show visual state
 
-  // Load industries and cities
+  // Load prefectures and industries on mount
   useEffect(() => {
     async function loadData() {
       try {
-        const [industriesRes, citiesRes] = await Promise.all([
+        const [prefecturesRes, industriesRes] = await Promise.all([
+          api.getPrefectures(),
           api.getIndustries(),
-          api.getCities("GR")
         ])
+
+        if (prefecturesRes.data) {
+          setPrefectures(prefecturesRes.data)
+        }
 
         if (industriesRes.data) {
           setIndustries(industriesRes.data)
         }
-        setIndustriesMeta(industriesRes.meta)
-
-        if (citiesRes.data) {
-          setCities(citiesRes.data)
-        }
-        setCitiesMeta(citiesRes.meta)
       } catch (error) {
         if (error instanceof NetworkError) {
           setNetworkError(error.message)
@@ -118,229 +103,103 @@ export default function DiscoverPage() {
     loadData()
   }, [])
 
-  const filteredCities = cities.filter((city) =>
-    city.name.toLowerCase().includes(citySearch.toLowerCase())
-  )
-
-  // Poll for discovery results with cost estimates
-  const pollForResults = async (runId: string) => {
-    let attempts = 0
-    const maxAttempts = 30 // Poll for up to 5 minutes (10s intervals)
-    
-    const poll = async () => {
-      try {
-        // First, try to get discovery run results with cost estimates
-        const resultsRes = await api.getDiscoveryRunResults(runId)
-        
-        // Check if discovery is completed or failed - stop polling in either case
-        if (resultsRes.data && (resultsRes.data.status === 'completed' || resultsRes.data.status === 'failed')) {
-          // Discovery completed (or failed) - stop polling
-          setPolling(false)
-          
-          // If we have cost estimates, use them
-          if (resultsRes.data.cost_estimates) {
-            const estimates = resultsRes.data.cost_estimates
-            setCostEstimates(estimates)
-            
-            // Get datasets to find the one created by this discovery run
-            const datasetsRes = await api.getDatasets()
-            if (datasetsRes.data && datasetsRes.data.length > 0) {
-              // Find the most recent dataset (should be the one just created)
-              const latestDataset = datasetsRes.data[0]
-              
-              // Get sample businesses from this dataset
-              const businessesRes = await api.getBusinesses(latestDataset.id, { limit: 10 })
-              if (businessesRes.data && businessesRes.data.length > 0) {
-                const businesses = businessesRes.data
-                
-                setPreviewData({
-                  businesses: businesses.slice(0, 10), // Sample of 10
-                  totalBusinesses: estimates.estimatedBusinesses,
-                  withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
-                  withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
-                  withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
-                })
-              } else {
-                // No businesses yet, but we have estimates
-                setPreviewData({
-                  businesses: [],
-                  totalBusinesses: estimates.estimatedBusinesses,
-                  withWebsite: Math.round((estimates.completenessStats.withWebsitePercent / 100) * estimates.estimatedBusinesses),
-                  withEmail: Math.round((estimates.completenessStats.withEmailPercent / 100) * estimates.estimatedBusinesses),
-                  withPhone: Math.round((estimates.completenessStats.withPhonePercent / 100) * estimates.estimatedBusinesses),
-                })
-              }
-            }
-          } else {
-            // Discovery completed but no cost estimates (might be 0 businesses or error)
-            // Still try to get businesses from the dataset
-            const datasetsRes = await api.getDatasets()
-            if (datasetsRes.data && datasetsRes.data.length > 0) {
-              const latestDataset = datasetsRes.data[0]
-              const businessesRes = await api.getBusinesses(latestDataset.id, { limit: 10 })
-              if (businessesRes.data && businessesRes.data.length > 0) {
-                setPreviewData({
-                  businesses: businessesRes.data.slice(0, 10),
-                  totalBusinesses: businessesRes.meta.total_available || 0,
-                  withWebsite: 0,
-                  withEmail: 0,
-                  withPhone: 0,
-                })
-              }
-            }
-            
-            if (resultsRes.data.status === 'failed') {
-              toast({
-                title: "Discovery failed",
-                description: "The discovery process encountered an error. Please try again.",
-                variant: "destructive",
-              })
-            } else {
-              toast({
-                title: "Discovery completed",
-                description: "Check your datasets to see the results.",
-              })
-            }
+  // Load municipalities when prefecture changes
+  useEffect(() => {
+    if (selectedPrefecture) {
+      async function loadMunicipalities() {
+        try {
+          const res = await api.getMunicipalities(selectedPrefecture)
+          if (res.data) {
+            setMunicipalities(res.data)
           }
-          
-          return
-        }
-        
-        // Still running - continue polling
-        attempts++
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 10000) // Poll every 10 seconds
-        } else {
-          setPolling(false)
+        } catch (error) {
+          console.error('Error loading municipalities:', error)
           toast({
-            title: "Discovery taking longer than expected",
-            description: "Results will be available in your datasets shortly.",
+            title: "Error",
+            description: "Failed to load municipalities",
+            variant: "destructive",
+          })
+        }
+      }
+      loadMunicipalities()
+      // Clear municipality selection when prefecture changes
+      setSelectedMunicipality("")
+    } else {
+      setMunicipalities([])
+      setSelectedMunicipality("")
+    }
+  }, [selectedPrefecture, toast])
+
+  // Poll for discovery results
+  const startPolling = (runId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.getDiscoveryRunResults(runId)
+
+        if (res.data?.status === 'completed') {
+          clearInterval(interval)
+          setPolling(false)
+
+          toast({
+            title: "Discovery completed",
+            description: `Found ${res.data.businesses_found || 0} businesses. Refreshing search results...`,
+          })
+
+          // Refresh search results
+          handleSearch()
+        } else if (res.data?.status === 'failed') {
+          clearInterval(interval)
+          setPolling(false)
+
+          toast({
+            title: "Discovery failed",
+            description: "The discovery process encountered an error.",
+            variant: "destructive",
           })
         }
       } catch (error) {
-        console.error('[Discover] Error polling for results:', error)
-        attempts++
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 10000)
-        } else {
-          setPolling(false)
-        }
+        console.error('Polling error:', error)
       }
-    }
-    
-    // Start polling after initial delay
-    setTimeout(poll, 5000)
+    }, 5000) // Poll every 5 seconds
+
+    // Store interval ID for cleanup
+    return () => clearInterval(interval)
   }
 
-  const handleDiscover = async () => {
-    if (!selectedIndustry || !selectedCity) {
+  // Handle Search (local database)
+  const handleSearch = async () => {
+    if (!selectedMunicipality || !selectedIndustry) {
       toast({
         title: "Selection required",
-        description: "Please select both industry and city",
+        description: "Please select municipality and industry",
         variant: "destructive",
       })
       return
     }
 
-    // Validate that we have selected values
-    if (!selectedIndustry || !selectedCity) {
-      toast({
-        title: "Invalid selection",
-        description: "Please select valid industry and city",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Check billing limits
-    if (billingData) {
-      // Check crawl limit
-      if (isNearLimit('crawls')) {
-        toast({
-          title: "Discovery limit reached",
-          description: "You've reached your monthly discovery limit. Please upgrade your plan or wait for next month.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Estimate cost (rough estimate: 50-200 businesses per discovery)
-      const estimatedBusinesses = 100 // Conservative estimate
-      const cost = estimateDiscoveryCost(estimatedBusinesses)
-      setEstimatedCost(cost)
-
-      // Check if user has enough credits
-      if (!hasEnoughCredits(cost)) {
-        toast({
-          title: "Insufficient credits",
-          description: `You need ${cost} credits to start discovery, but you only have ${billingData.credits}.`,
-          variant: "destructive",
-        })
-        setShowCreditModal(true)
-        return
-      }
-
-      // Show cost confirmation if cost is significant
-      if (cost > 10) {
-        setShowCostConfirm(true)
-        return
-      }
-    }
-
-    // Proceed with discovery
-    await startDiscovery()
-  }
-
-  const startDiscovery = async () => {
-    setLoading(true)
-
+    setSearching(true)
     try {
-      // Both industries and cities use UUIDs (strings)
-      console.log('[Discover] Sending discovery request:', { industryId: selectedIndustry, cityId: selectedCity })
-      const response = await api.discoverBusinesses({
-        industryId: selectedIndustry, // UUID string
-        cityId: selectedCity, // UUID string
+      const res = await api.searchBusinesses({
+        municipality_id: selectedMunicipality,
+        industry_id: selectedIndustry,
+        page: 1,
+        limit: 50,
       })
 
-      // Check for errors first
-      console.log('[Discover] ===== PROCESSING DISCOVERY RESPONSE =====');
-      console.log('[Discover] Full response object:', JSON.stringify(response, null, 2));
-      console.log('[Discover] response.data:', response.data);
-      console.log('[Discover] response.data type:', typeof response.data);
-      console.log('[Discover] response.data is array?', Array.isArray(response.data));
-      console.log('[Discover] response.data length:', Array.isArray(response.data) ? response.data.length : 'N/A');
-      console.log('[Discover] response.meta:', response.meta);
-      
-      if (!response.data) {
-        const errorMessage = response.meta.gate_reason || response.meta.message || "Failed to start discovery"
-        console.error('[Discover] Discovery failed - no data:', errorMessage, response.meta)
+      if (res.data) {
+        setSearchResults(res.data)
+        setSearchMeta(res.meta)
         toast({
-          title: "Discovery failed",
-          description: errorMessage,
-          variant: "destructive",
+          title: "Search completed",
+          description: `Found ${res.meta.total_count || res.data.length} businesses`,
         })
-        return
-      }
-
-      // Discovery is running asynchronously - response.data contains discovery run info
-      const discoveryRun = Array.isArray(response.data) && response.data.length > 0 ? response.data[0] : null
-      console.log('[Discover] Extracted discoveryRun:', discoveryRun);
-      console.log('[Discover] discoveryRun has id?', discoveryRun && typeof discoveryRun === 'object' && 'id' in discoveryRun);
-      
-      if (discoveryRun && typeof discoveryRun === 'object' && 'id' in discoveryRun) {
-        console.log('[Discover] Setting discoveryRunId and starting polling:', (discoveryRun as any).id);
-        setDiscoveryRunId((discoveryRun as any).id)
-        // Start polling for results
-        setPolling(true)
-        pollForResults((discoveryRun as any).id)
       } else {
-        console.warn('[Discover] discoveryRun is invalid:', discoveryRun);
+        setSearchResults([])
+        toast({
+          title: "No results",
+          description: "No businesses found matching your criteria",
+        })
       }
-      
-      toast({
-        title: "Discovery started",
-        description: response.meta.message || "Finding businesses based on your criteria. This may take a few moments.",
-      })
     } catch (error) {
       if (error instanceof NetworkError) {
         toast({
@@ -350,8 +209,76 @@ export default function DiscoverPage() {
         })
       } else {
         toast({
-          title: "Error",
+          title: "Search failed",
           description: "An unexpected error occurred",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  // Handle Deep Discovery (GEMI API)
+  const handleDeepDiscovery = async () => {
+    if (!selectedMunicipality || !selectedIndustry) {
+      toast({
+        title: "Selection required",
+        description: "Please select municipality and industry",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      // Note: Backend expects city_id, but we're passing municipality_id
+      // Backend will handle the mapping
+      const res = await api.startGemiDiscovery({
+        city_id: selectedMunicipality, // Backend will map municipality to city
+        industry_id: selectedIndustry,
+      })
+
+      if (res.data && res.data.length > 0) {
+        const runId = res.data[0].id
+        setDiscoveryRunId(runId)
+        setPolling(true)
+        startPolling(runId)
+
+        toast({
+          title: "Discovery started",
+          description: "Fetching businesses from GEMI Registry. This may take a few minutes.",
+          duration: 10000,
+        })
+      } else {
+        throw new Error('No discovery run ID returned')
+      }
+    } catch (error: any) {
+      // Handle rate limit - check both response status and meta gate_reason
+      const isRateLimit = 
+        error.response?.status === 429 || 
+        error.message?.includes('rate limit') || 
+        error.message?.includes('GEMI') ||
+        error.message?.includes('processing') ||
+        (error.meta?.gate_reason?.includes('GEMI') || error.meta?.gate_reason?.includes('processing'))
+      
+      if (isRateLimit) {
+        toast({
+          title: "Rate limit reached",
+          description: error.message || "GEMI Registry is processing requests. Please wait...",
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else if (error instanceof NetworkError) {
+        toast({
+          title: "Network error",
+          description: error.message,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Discovery failed",
+          description: error.message || "An unexpected error occurred",
           variant: "destructive",
         })
       }
@@ -361,11 +288,11 @@ export default function DiscoverPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Discover Leads</h1>
         <p className="text-sm text-muted-foreground">
-          Find new business contacts by selecting your target industry and city
+          Find new business contacts by selecting region, town, and industry
         </p>
       </div>
 
@@ -388,6 +315,69 @@ export default function DiscoverPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Region (Prefecture) Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="prefecture" className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              Region (Prefecture)
+            </Label>
+            {loadingData ? (
+              <Skeleton className="h-11 w-full" />
+            ) : (
+              <Select value={selectedPrefecture} onValueChange={setSelectedPrefecture}>
+                <SelectTrigger id="prefecture" className="h-11">
+                  <SelectValue placeholder="Select a region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {prefectures.map((pref) => (
+                    <SelectItem key={pref.id} value={pref.id}>
+                      {pref.descr_en || pref.descr}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Town (Municipality) Selection - Disabled until region selected */}
+          <div className="space-y-2">
+            <Label htmlFor="municipality" className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              Town (Municipality)
+            </Label>
+            {loadingData ? (
+              <Skeleton className="h-11 w-full" />
+            ) : (
+              <Select
+                value={selectedMunicipality}
+                onValueChange={setSelectedMunicipality}
+                disabled={!selectedPrefecture}
+              >
+                <SelectTrigger id="municipality" className="h-11">
+                  <SelectValue
+                    placeholder={
+                      selectedPrefecture
+                        ? "Select a town"
+                        : "Select a region first"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {municipalities.map((mun) => (
+                    <SelectItem key={mun.id} value={mun.id}>
+                      {mun.descr_en || mun.descr}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!selectedPrefecture && (
+              <p className="text-xs text-muted-foreground">
+                Please select a region first to enable town selection
+              </p>
+            )}
+          </div>
+
           {/* Industry Selection */}
           <div className="space-y-2">
             <Label htmlFor="industry" className="flex items-center gap-2">
@@ -397,265 +387,142 @@ export default function DiscoverPage() {
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
             ) : (
-              <>
-                {industriesMeta.gated && <GateBanner meta={industriesMeta} />}
-                <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
-                  <SelectTrigger id="industry" className="h-11">
-                    <SelectValue placeholder="Select an industry" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {industries.map((industry) => (
-                      <SelectItem key={industry.id} value={String(industry.id)}>
-                        {industry.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {industriesMeta.total_available > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Showing {industriesMeta.total_returned} of {industriesMeta.total_available} industries
-                  </p>
-                )}
-              </>
+              <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                <SelectTrigger id="industry" className="h-11">
+                  <SelectValue placeholder="Select an industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  {industries.map((industry) => (
+                    <SelectItem key={industry.id} value={String(industry.id)}>
+                      {industry.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-          </div>
-
-          {/* City Selection with Autocomplete */}
-          <div className="space-y-2">
-            <Label htmlFor="city" className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              City
-            </Label>
-            {loadingData ? (
-              <Skeleton className="h-11 w-full" />
-            ) : (
-              <>
-                {citiesMeta.gated && <GateBanner meta={citiesMeta} />}
-                <Select value={selectedCity} onValueChange={setSelectedCity}>
-                  <SelectTrigger id="city" className="h-11">
-                    <SelectValue placeholder="Select a city" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-2 pb-2">
-                      <Input
-                        placeholder="Search cities..."
-                        value={citySearch}
-                        onChange={(e) => setCitySearch(e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    {filteredCities.map((city) => (
-                      <SelectItem key={city.id} value={String(city.id)}>
-                        {city.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {citiesMeta.total_available > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Showing {citiesMeta.total_returned} of {citiesMeta.total_available} cities
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Country (Disabled) */}
-          <div className="space-y-2">
-            <Label className="text-muted-foreground">Country</Label>
-            <Input
-              value="Greece"
-              disabled
-              className="h-11 bg-muted/50 text-muted-foreground cursor-not-allowed"
-            />
-            <p className="text-xs text-muted-foreground">
-              Currently available for Greece only. More countries coming soon.
-            </p>
           </div>
 
           {/* Info Box */}
           <Alert className="bg-primary/5 border-primary/20">
             <Info className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-foreground">Grid-Based Discovery</AlertTitle>
+            <AlertTitle className="text-foreground">GEMI Registry Integration</AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="underline cursor-help">
-                      Η ανακάλυψη γίνεται με πολλαπλά σημεία κάλυψης της πόλης για μέγιστο αποτέλεσμα.
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-xs text-sm">
-                      Χρησιμοποιούμε grid-based discovery με overlapping points για να εξασφαλίσουμε 
-                      καλή κάλυψη. Δεν πρόκειται για επίσημο μητρώο - η κάλυψη διαφέρει ανά πόλη και κλάδο.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              Search uses your local database. Deep Discovery fetches fresh data from the official GEMI Registry.
             </AlertDescription>
           </Alert>
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button
+              variant="outline"
+              className={cn(
+                "flex-1 h-11",
+                !discoveryCheck.allowed && "opacity-50"
+              )}
+              disabled={!selectedMunicipality || !selectedIndustry || searching || loading}
+              onClick={handleSearch}
+            >
+              <Search className="mr-2 w-4 h-4" />
+              {searching ? "Searching..." : "Search Local Database"}
+            </Button>
+
+            <Button
               className={cn(
                 "flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground",
                 !discoveryCheck.allowed && "opacity-50"
               )}
-              disabled={!selectedIndustry || !selectedCity || loading}
-              onClick={handleDiscover}
-              // Never block action - only visual state
-              // Backend will enforce limits
+              disabled={!selectedMunicipality || !selectedIndustry || loading || polling}
+              onClick={handleDeepDiscovery}
             >
-              <Sparkles className="mr-2 w-4 h-4" />
-              {loading ? "Starting Discovery..." : "Run Discovery"}
+              {polling ? (
+                <>
+                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                  Fetching from GEMI...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 w-4 h-4" />
+                  Deep Discovery (GEMI)
+                </>
+              )}
             </Button>
           </div>
+
+          {/* Polling Status */}
+          {polling && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                Fetching businesses from GEMI Registry. This may take a few minutes due to rate limits (8 requests/minute).
+              </AlertDescription>
+            </Alert>
+          )}
 
           <Alert className="bg-success/5 border-success/20">
             <Info className="h-4 w-4 text-success" />
             <AlertDescription className="text-sm text-muted-foreground">
-              Η ανακάλυψη είναι δωρεάν. Πληρώνετε μόνο όταν επιλέξετε να εξάγετε δεδομένα.
+              Search is free. Deep Discovery fetches fresh data from GEMI Registry. You only pay when you export data.
             </AlertDescription>
           </Alert>
         </CardContent>
       </Card>
 
-      {/* Preview State */}
-      {(discoveryRunId || previewData || costEstimates) && (
-        <>
-          {/* Loading State */}
-          {polling && !previewData && !costEstimates && (
-            <Card className="bg-card border-border">
-              <CardContent className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                <span className="ml-3 text-sm text-muted-foreground">
-                  Αναζήτηση επιχειρήσεων με grid-based discovery...
-                </span>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Results Preview */}
-          {(previewData || costEstimates) && (
-            <>
-              {/* Preview Section */}
-              <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-card-foreground">Προεπισκόπηση Αποτελεσμάτων</CardTitle>
-                  <CardDescription>
-                    {costEstimates 
-                      ? `~${costEstimates.estimatedBusinesses.toLocaleString()} επιχειρήσεις βρέθηκαν`
-                      : "Αναζήτηση επιχειρήσεων..."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Estimated Businesses & Coverage */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="text-center p-4 rounded-lg bg-muted/50">
-                      <div className="text-3xl font-bold text-foreground">
-                        {costEstimates ? `~${costEstimates.estimatedBusinesses.toLocaleString()}` : previewData?.totalBusinesses.toLocaleString() || '—'}
+      {/* Search Results Table */}
+      {searchResults.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-card-foreground">Search Results</CardTitle>
+            <CardDescription>
+              {searchMeta.total_count || searchResults.length} businesses found
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Business Name</TableHead>
+                  <TableHead>AR GEMI</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Contact Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {searchResults.map((business) => (
+                  <TableRow key={business.id}>
+                    <TableCell className="font-medium">{business.name}</TableCell>
+                    <TableCell>
+                      {(business as any).ar_gemi || '—'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {business.address || '—'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {business.email && (
+                          <Mail className="w-4 h-4 text-green-500" title="Has email" />
+                        )}
+                        {business.phone && (
+                          <Phone className="w-4 h-4 text-green-500" title="Has phone" />
+                        )}
+                        {business.website && (
+                          <Globe className="w-4 h-4 text-blue-500" title="Has website" />
+                        )}
+                        {!business.email && !business.phone && (
+                          <span className="text-xs text-muted-foreground">No contacts</span>
+                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">Επιχειρήσεις</div>
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-muted/50 flex items-center justify-center">
-                      <CoverageBadge 
-                        level={costEstimates 
-                          ? calculateCoverageLevel(costEstimates.estimatedBusinesses / 100)
-                          : previewData 
-                            ? calculateCoverageLevel(previewData.totalBusinesses / 100)
-                            : "MEDIUM"
-                        } 
-                        showTooltip={true}
-                      />
-                    </div>
-                    <div className="text-center p-4 rounded-lg bg-muted/50">
-                      <div className="text-sm text-muted-foreground mb-1">Κάλυψη</div>
-                      <div className="text-xs text-muted-foreground">
-                        Grid-based discovery
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Sample Businesses */}
-                  {previewData && previewData.businesses.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-foreground">Δείγμα Επιχειρήσεων</h4>
-                      <div className="space-y-2">
-                        {previewData.businesses.slice(0, 10).map((business, idx) => (
-                          <div 
-                            key={business.id || idx} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
-                          >
-                            <div className="flex-1">
-                              <div className="font-medium text-sm text-foreground">{business.name}</div>
-                              {business.address && (
-                                <div className="text-xs text-muted-foreground mt-1">{business.address}</div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {business.website && (
-                                <Globe className="w-4 h-4 text-muted-foreground" />
-                              )}
-                              {business.email && (
-                                <Mail className="w-4 h-4 text-muted-foreground" />
-                              )}
-                              {business.phone && (
-                                <Phone className="w-4 h-4 text-muted-foreground" />
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Completeness Stats */}
-              {costEstimates && (
-                <CompletenessStats
-                  withWebsitePercent={costEstimates.completenessStats.withWebsitePercent}
-                  withEmailPercent={costEstimates.completenessStats.withEmailPercent}
-                  withPhonePercent={costEstimates.completenessStats.withPhonePercent}
-                  totalBusinesses={costEstimates.estimatedBusinesses}
-                />
-              )}
-
-              {/* Cost Estimator */}
-              {costEstimates && (
-                <ExportCostEstimator costEstimates={costEstimates} />
-              )}
-
-              {/* CTAs */}
-              {(previewData || costEstimates) && (
-                <Card className="bg-card border-border">
-                  <CardContent className="pt-6 space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <Button 
-                        className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-                        onClick={() => router.push('/datasets')}
-                      >
-                        Αποθήκευση Dataset
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => router.push('/exports')}
-                      >
-                        Συνέχεια στο Export
-                      </Button>
-                    </div>
-                    <p className="text-xs text-center text-muted-foreground">
-                      Η ανακάλυψη είναι δωρεάν. Πληρώνετε μόνο όταν επιλέξετε να εξάγετε δεδομένα.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-        </>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {searchMeta.total_count && searchMeta.total_count > searchResults.length && (
+              <div className="mt-4 text-sm text-muted-foreground text-center">
+                Showing {searchResults.length} of {searchMeta.total_count} businesses
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Tips Card */}
@@ -667,59 +534,19 @@ export default function DiscoverPage() {
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              Start with a specific industry to get more accurate results
+              Use "Search" to quickly find businesses already in your database
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              Larger cities typically have more businesses but also more competition
+              Use "Deep Discovery" to fetch fresh data from the official GEMI Registry
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              Consider upgrading to Professional for monthly refresh and change detection
+              Deep Discovery may take a few minutes due to API rate limits
             </li>
           </ul>
         </CardContent>
       </Card>
-
-      {/* Cost Confirmation Dialog */}
-      <Dialog open={showCostConfirm} onOpenChange={setShowCostConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Discovery Cost</DialogTitle>
-            <DialogDescription>
-              This discovery will consume approximately {estimatedCost} credits.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Estimated cost:</span>
-                <span className="font-medium">{estimatedCost} credits</span>
-              </div>
-              {billingData && (
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Your balance:</span>
-                  <span className="font-medium">{billingData.credits} credits</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCostConfirm(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => {
-              setShowCostConfirm(false)
-              startDiscovery()
-            }}>
-              Confirm & Start
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Credit Purchase Modal */}
-      <CreditPurchaseModal open={showCreditModal} onOpenChange={setShowCreditModal} />
     </div>
   )
 }

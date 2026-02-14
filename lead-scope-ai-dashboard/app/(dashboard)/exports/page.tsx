@@ -111,18 +111,32 @@ export default function ExportsPage() {
   const loadExports = useCallback(async () => {
     try {
       setLoading(true)
+      console.log('[ExportsPage] Fetching exports from API...')
       const response = await api.getExports()
+      console.log('[ExportsPage] API response:', { 
+        hasData: !!response.data, 
+        dataLength: response.data?.length || 0,
+        meta: response.meta,
+        firstExport: response.data?.[0] || null
+      })
+      
       if (response.data) {
         setExports(response.data)
+        console.log('[ExportsPage] Loaded exports:', response.data.length)
+      } else {
+        console.log('[ExportsPage] No exports in response')
+        setExports([])
       }
       setMeta(response.meta)
       setNetworkError(null)
     } catch (error) {
+      console.error('[ExportsPage] Error loading exports:', error)
       if (error instanceof NetworkError) {
         setNetworkError(error.message)
       } else {
         setNetworkError('Failed to load exports')
       }
+      setExports([])
     } finally {
       setLoading(false)
     }

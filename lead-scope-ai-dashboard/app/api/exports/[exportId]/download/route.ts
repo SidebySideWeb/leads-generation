@@ -6,18 +6,18 @@
  * Proxies download request to backend /exports/:id/download endpoint
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' 
   ? 'https://api.leadscope.gr'
   : 'http://localhost:3001')
 
 export async function GET(
-  request: Request,
-  { params }: { params: { exportId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ exportId: string }> }
 ) {
   try {
-    const exportId = params.exportId
+    const { exportId } = await params
 
     if (!exportId) {
       return NextResponse.json(

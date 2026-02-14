@@ -1,3 +1,6 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,18 +20,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Database, Plus, MoreHorizontal, Eye, Download, ArrowUpCircle, AlertTriangle, Mail, Phone, Globe, Clock } from "lucide-react"
+import { Database, Plus, MoreHorizontal, Eye, Download, ArrowUpCircle, AlertTriangle, Mail, Phone, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { api } from "@/lib/api"
-import { NetworkError } from "@/lib/api"
-import type { Dataset, ResponseMeta, Business } from "@/lib/types"
+import { api, NetworkError } from "@/lib/api"
+import type { Dataset, ResponseMeta } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { MetaInfo } from "@/components/dashboard/meta-info"
 import { ExportAction } from "@/components/dashboard/export-action"
 import { FreshnessTag } from "@/components/dashboard/freshness-tag"
-// Auth is handled client-side via API calls (they redirect on 401/403)
 
 const statusConfig = {
   snapshot: {
@@ -48,22 +49,18 @@ const statusConfig = {
   },
 } as const
 
-export default async function DatasetsPage() {
-  // Don't check auth server-side - cookie might not be readable due to cross-domain
-  // The cookie is sent in the request, but Next.js cookies() might not read it
-  // Let the page load and API calls will handle auth (they'll redirect on 401/403)
-  // This prevents the 307 redirect loop
-
-  let datasets: Dataset[] | null = null
-  let meta: ResponseMeta = {
+export default function DatasetsPage() {
+  const [datasets, setDatasets] = useState<Dataset[] | null>(null)
+  const [meta, setMeta] = useState<ResponseMeta>({
     plan_id: 'demo',
     gated: false,
     total_available: 0,
     total_returned: 0,
-  }
-  let networkError: string | null = null
-  let datasetCompleteness: Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }> = {}
-  let allDiscoveryRuns: Array<{
+  })
+  const [networkError, setNetworkError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [datasetCompleteness, setDatasetCompleteness] = useState<Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }>>({})
+  const [allDiscoveryRuns, setAllDiscoveryRuns] = useState<Array<{
     id: string;
     dataset_id: string;
     status: 'running' | 'completed' | 'failed';
@@ -73,84 +70,95 @@ export default async function DatasetsPage() {
     dataset_name: string;
     industry_name: string;
     city_name: string | null;
-  }> | null = null
+  }> | null>(null)
 
-  try {
-    console.log('[DatasetsPage] Fetching datasets from API...')
-    const response = await api.getDatasets()
-    console.log('[DatasetsPage] API response:', { 
-      hasData: !!response.data, 
-      dataLength: response.data?.length || 0,
-      meta: response.meta 
-    })
-    
-    if (response.data) {
-      datasets = response.data
-      console.log('[DatasetsPage] Loaded datasets:', datasets.length)
-      
-      // Fetch completeness data for each dataset
-      for (const dataset of datasets) {
-        try {
-          const businessesRes = await api.getBusinesses(dataset.id, { limit: 100 })
-          if (businessesRes.data && businessesRes.data.length > 0) {
-            const businesses = businessesRes.data
-            const withEmail = businesses.filter(b => b.email).length
-            const withPhone = businesses.filter(b => b.phone).length
-            const withWebsite = businesses.filter(b => b.website).length
-            
-            // Get last discovery date from discovery runs
-            let lastDiscovery: string | null = null
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true)
+        console.log('[DatasetsPage] Fetching datasets from API...')
+        const response = await api.getDatasets()
+        console.log('[DatasetsPage] API response:', { 
+          hasData: !!response.data, 
+          dataLength: response.data?.length || 0,
+          meta: response.meta 
+        })
+        
+        if (response.data) {
+          setDatasets(response.data)
+          console.log('[DatasetsPage] Loaded datasets:', response.data.length)
+          
+          // Fetch completeness data for each dataset
+          const completeness: Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }> = {}
+          for (const dataset of response.data) {
             try {
-              const discoveryRunsRes = await api.getDiscoveryRuns(dataset.id)
-              if (discoveryRunsRes.data && discoveryRunsRes.data.length > 0) {
-                const completedRuns = discoveryRunsRes.data.filter(run => run.status === 'completed' && run.completed_at)
-                if (completedRuns.length > 0) {
-                  lastDiscovery = completedRuns.sort((a, b) => 
-                    new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime()
-                  )[0].completed_at!
+              const businessesRes = await api.getBusinesses(dataset.id, { limit: 100 })
+              if (businessesRes.data && businessesRes.data.length > 0) {
+                const businesses = businessesRes.data
+                const withEmail = businesses.filter(b => b.email).length
+                const withPhone = businesses.filter(b => b.phone).length
+                const withWebsite = businesses.filter(b => b.website).length
+                
+                // Get last discovery date from discovery runs
+                let lastDiscovery: string | null = null
+                try {
+                  const discoveryRunsRes = await api.getDiscoveryRuns(dataset.id)
+                  if (discoveryRunsRes.data && discoveryRunsRes.data.length > 0) {
+                    const completedRuns = discoveryRunsRes.data.filter(run => run.status === 'completed' && run.completed_at)
+                    if (completedRuns.length > 0) {
+                      lastDiscovery = completedRuns.sort((a, b) => 
+                        new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime()
+                      )[0].completed_at!
+                    }
+                  }
+                } catch (e) {
+                  // Ignore discovery runs errors
+                }
+                
+                // Estimate percentages based on sample
+                const sampleSize = businesses.length
+                completeness[dataset.id] = {
+                  withEmail: Math.round((withEmail / sampleSize) * 100),
+                  withPhone: Math.round((withPhone / sampleSize) * 100),
+                  withWebsite: Math.round((withWebsite / sampleSize) * 100),
+                  lastDiscovery,
                 }
               }
             } catch (e) {
-              // Ignore discovery runs errors
-            }
-            
-            // Estimate percentages based on sample
-            const sampleSize = businesses.length
-            datasetCompleteness[dataset.id] = {
-              withEmail: Math.round((withEmail / sampleSize) * 100),
-              withPhone: Math.round((withPhone / sampleSize) * 100),
-              withWebsite: Math.round((withWebsite / sampleSize) * 100),
-              lastDiscovery,
+              // Ignore individual dataset errors
+              console.error(`[DatasetsPage] Error loading completeness for dataset ${dataset.id}:`, e)
             }
           }
-        } catch (e) {
-          // Ignore individual dataset errors
-          console.error(`[DatasetsPage] Error loading completeness for dataset ${dataset.id}:`, e)
+          setDatasetCompleteness(completeness)
+        } else {
+          console.log('[DatasetsPage] No datasets in response')
         }
-      }
-    } else {
-      console.log('[DatasetsPage] No datasets in response')
-    }
-    meta = response.meta
+        setMeta(response.meta)
 
-    // Load all discovery runs
-    try {
-      const discoveryRunsRes = await api.getAllDiscoveryRuns()
-      if (discoveryRunsRes.data) {
-        allDiscoveryRuns = discoveryRunsRes.data
+        // Load all discovery runs
+        try {
+          const discoveryRunsRes = await api.getAllDiscoveryRuns()
+          if (discoveryRunsRes.data) {
+            setAllDiscoveryRuns(discoveryRunsRes.data)
+          }
+        } catch (error) {
+          console.error('[DatasetsPage] Error loading discovery runs:', error)
+          // Don't fail the page if discovery runs fail to load
+        }
+      } catch (error) {
+        console.error('[DatasetsPage] Error loading datasets:', error)
+        if (error instanceof NetworkError) {
+          setNetworkError(error.message)
+        } else {
+          setNetworkError('Failed to load datasets')
+        }
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error('[DatasetsPage] Error loading discovery runs:', error)
-      // Don't fail the page if discovery runs fail to load
     }
-  } catch (error) {
-    console.error('[DatasetsPage] Error loading datasets:', error)
-    if (error instanceof NetworkError) {
-      networkError = error.message
-    } else {
-      networkError = 'Failed to load datasets'
-    }
-  }
+
+    loadData()
+  }, [])
 
   const outdatedCount = datasets?.filter((d) => d.refreshStatus === "outdated").length || 0
 
@@ -160,6 +168,29 @@ export default async function DatasetsPage() {
       day: "numeric",
       year: "numeric",
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

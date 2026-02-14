@@ -307,7 +307,6 @@ export default function ExportsPage() {
           className="bg-primary hover:bg-primary/90 text-primary-foreground"
           onClick={() => {
             if (datasets && datasets.length > 0) {
-              setSelectedDataset(datasets[0])
               setDialogOpen(true)
             } else {
               toast({
@@ -326,6 +325,7 @@ export default function ExportsPage() {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           dataset={selectedDataset}
+          datasets={datasets || []}
           onComplete={() => {
             loadExports()
             setDialogOpen(false)

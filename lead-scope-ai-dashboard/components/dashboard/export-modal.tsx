@@ -11,8 +11,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Info, Download, Euro, AlertCircle } from "lucide-react"
+import { Loader2, Info, Download, Euro, AlertCircle, Database } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -21,7 +28,8 @@ import type { Dataset } from "@/lib/types"
 interface ExportModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  dataset: Dataset | null
+  dataset?: Dataset | null // Pre-selected dataset (optional)
+  datasets?: Dataset[] // List of all available datasets
   onComplete?: () => void
   // Optional filters for export
   municipalityId?: string
@@ -36,27 +44,72 @@ const MAX_EXPORT_ROWS = 1000
 export function ExportModal({ 
   open, 
   onOpenChange, 
-  dataset, 
+  dataset: initialDataset,
+  datasets: availableDatasets = [],
   onComplete,
   municipalityId,
   industryId,
   prefectureId,
 }: ExportModalProps) {
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>(initialDataset?.id || '')
   const [startRow, setStartRow] = useState(1)
   const [endRow, setEndRow] = useState(100)
   const [loading, setLoading] = useState(false)
+  const [loadingDatasets, setLoadingDatasets] = useState(false)
+  const [datasets, setDatasets] = useState<Dataset[]>(availableDatasets)
   const { toast } = useToast()
 
-  const datasetSize = dataset?.businesses || 0
+  // Load datasets if not provided
+  useEffect(() => {
+    if (open && datasets.length === 0) {
+      loadDatasets()
+    }
+  }, [open])
+
+  // Set initial dataset when modal opens
+  useEffect(() => {
+    if (open) {
+      if (initialDataset) {
+        setSelectedDatasetId(initialDataset.id)
+      } else if (datasets.length > 0) {
+        setSelectedDatasetId(datasets[0].id)
+      }
+    }
+  }, [open, initialDataset, datasets])
+
+  const loadDatasets = async () => {
+    try {
+      setLoadingDatasets(true)
+      const response = await api.getDatasets()
+      if (response.data) {
+        setDatasets(response.data)
+        if (response.data.length > 0 && !selectedDatasetId) {
+          setSelectedDatasetId(response.data[0].id)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load datasets:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load datasets",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingDatasets(false)
+    }
+  }
+
+  const selectedDataset = datasets.find(d => d.id === selectedDatasetId)
+  const datasetSize = selectedDataset?.businesses || 0
 
   // Set default end row based on dataset size
   useEffect(() => {
-    if (dataset && datasetSize > 0) {
+    if (selectedDataset && datasetSize > 0) {
       const defaultEnd = Math.min(100, datasetSize)
       setEndRow(defaultEnd)
       setStartRow(1)
     }
-  }, [dataset, datasetSize])
+  }, [selectedDataset, datasetSize])
 
   // Calculate row count and price
   const rowCount = useMemo(() => {
@@ -78,6 +131,15 @@ export function ExportModal({
   }, [startRow, endRow, rowCount])
 
   const handleExport = async () => {
+    if (!selectedDatasetId) {
+      toast({
+        title: "No dataset selected",
+        description: "Please select a dataset to export",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!isValid) {
       toast({
         title: "Invalid range",
@@ -89,51 +151,19 @@ export function ExportModal({
 
     setLoading(true)
     try {
-      // Use the new export endpoint with row range
-      // Get base URL from environment or use default
-      const baseUrl = typeof window !== 'undefined' 
-        ? (process.env.NEXT_PUBLIC_API_URL || 'https://api.leadscope.gr')
-        : 'https://api.leadscope.gr'
-      const url = `${baseUrl}/api/export`
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          start_row: startRow,
-          end_row: endRow,
-          ...(municipalityId && { municipality_id: municipalityId }),
-          ...(industryId && { industry_id: industryId }),
-          ...(prefectureId && { prefecture_id: prefectureId }),
-        }),
-        credentials: 'include',
-      })
-
+      // Use the runExport endpoint which creates an async export job
+      const response = await api.runExport(selectedDatasetId, 'xlsx')
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        toast({
-          title: "Export failed",
-          description: errorData.message || errorData.meta?.gate_reason || "Failed to create export",
-          variant: "destructive",
-        })
-        return
+        throw new Error(errorData.error || errorData.message || 'Failed to create export')
       }
 
-      // Handle blob response (Excel file)
-      const blob = await response.blob()
-      const url_blob = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url_blob
-      link.setAttribute('download', `businesses-export-${Date.now()}.xlsx`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url_blob)
-
+      const result = await response.json()
+      
       toast({
-        title: "Export completed",
-        description: `Exported ${rowCount} businesses (€${price?.toFixed(2)})`,
+        title: "Export started",
+        description: result.message || "Your export is being processed. You'll be notified when it's ready.",
       })
 
       onOpenChange(false)
@@ -150,7 +180,7 @@ export function ExportModal({
       } else {
         toast({
           title: "Error",
-          description: "An unexpected error occurred",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
           variant: "destructive",
         })
       }
@@ -178,9 +208,58 @@ export function ExportModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Dataset Selector */}
+          {datasets.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="dataset-select">Select Dataset</Label>
+              <Select
+                value={selectedDatasetId}
+                onValueChange={setSelectedDatasetId}
+                disabled={loading || loadingDatasets}
+              >
+                <SelectTrigger id="dataset-select">
+                  <SelectValue placeholder="Select a dataset">
+                    {selectedDataset ? (
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4" />
+                        <span>{selectedDataset.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({selectedDataset.businesses.toLocaleString()} businesses)
+                        </span>
+                      </div>
+                    ) : (
+                      "Select a dataset"
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {datasets.map((ds) => (
+                    <SelectItem key={ds.id} value={ds.id}>
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4" />
+                        <span>{ds.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({ds.businesses.toLocaleString()} businesses)
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {loadingDatasets && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading datasets...
+            </div>
+          )}
+
           {/* Row Range Selector */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          {selectedDataset && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start-row">Start Row</Label>
                 <Input
@@ -220,65 +299,70 @@ export function ExportModal({
               </div>
             </div>
 
-            {/* Dataset Info */}
-            {dataset && (
-              <Alert className="bg-muted/50 border-border">
-                <Info className="h-4 w-4 text-muted-foreground" />
-                <AlertDescription className="text-sm text-muted-foreground">
-                  Dataset contains {datasetSize.toLocaleString()} businesses.
-                  {endRow > datasetSize && (
-                    <span className="font-medium text-foreground"> Only {datasetSize.toLocaleString()} will be exported.</span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
+                {/* Dataset Info */}
+                {selectedDataset && (
+                  <Alert className="bg-muted/50 border-border">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <AlertDescription className="text-sm text-muted-foreground">
+                      Dataset contains {datasetSize.toLocaleString()} businesses.
+                      {endRow > datasetSize && (
+                        <span className="font-medium text-foreground"> Only {datasetSize.toLocaleString()} will be exported.</span>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-            {/* Validation Error */}
-            {!isValid && rowCount > 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {rowCount > MAX_EXPORT_ROWS
-                    ? `Maximum ${MAX_EXPORT_ROWS} rows allowed per export`
-                    : "Invalid row range"}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-
-          {/* Price Summary */}
-          <div className="p-4 rounded-lg border border-border bg-card">
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Row Count:</span>
-                <span className="font-medium text-foreground">
-                  {rowCount.toLocaleString()} {rowCount === 1 ? 'row' : 'rows'}
-                </span>
+                {/* Validation Error */}
+                {!isValid && rowCount > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {rowCount > MAX_EXPORT_ROWS
+                        ? `Maximum ${MAX_EXPORT_ROWS} rows allowed per export`
+                        : "Invalid row range"}
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-border">
-                <span className="text-sm text-muted-foreground">Price:</span>
-                <div className="flex items-center gap-2">
-                  <Euro className="w-4 h-4 text-primary" />
-                  <span className="text-lg font-bold text-primary">
-                    {price !== null ? price.toFixed(2) : '—'}
-                  </span>
+            )}
+
+          {/* Price Summary - Only show if row range is used */}
+          {selectedDataset && (
+            <>
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Row Count:</span>
+                    <span className="font-medium text-foreground">
+                      {rowCount.toLocaleString()} {rowCount === 1 ? 'row' : 'rows'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-border">
+                    <span className="text-sm text-muted-foreground">Price:</span>
+                    <div className="flex items-center gap-2">
+                      <Euro className="w-4 h-4 text-primary" />
+                      <span className="text-lg font-bold text-primary">
+                        {price !== null ? price.toFixed(2) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  {price !== null && (
+                    <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border">
+                      €{EXPORT_PRICE_PER_ROW.toFixed(2)} per row
+                    </p>
+                  )}
                 </div>
               </div>
-              {price !== null && (
-                <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border">
-                  €{EXPORT_PRICE_PER_ROW.toFixed(2)} per row
-                </p>
-              )}
-            </div>
-          </div>
 
-          {/* Info Alert */}
-          <Alert className="bg-primary/5 border-primary/20">
-            <Info className="h-4 w-4 text-primary" />
-            <AlertDescription className="text-sm text-muted-foreground">
-              The export will be downloaded as an Excel (.xlsx) file with business details including name, address, municipality, industry, website, email, and phone.
-            </AlertDescription>
-          </Alert>
+              {/* Info Alert */}
+              <Alert className="bg-primary/5 border-primary/20">
+                <Info className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-sm text-muted-foreground">
+                  The export will be processed in the background. You'll be able to download it from the exports page when ready.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -288,18 +372,18 @@ export function ExportModal({
           </Button>
           <Button
             onClick={handleExport}
-            disabled={!isValid || loading}
+            disabled={!selectedDatasetId || !isValid || loading || loadingDatasets}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Exporting...
+                Creating Export...
               </>
             ) : (
               <>
                 <Download className="w-4 h-4 mr-2" />
-                Export & Download (€{price?.toFixed(2) || '0.00'})
+                Create Export
               </>
             )}
           </Button>

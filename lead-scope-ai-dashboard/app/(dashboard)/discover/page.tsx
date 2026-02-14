@@ -23,6 +23,7 @@ import type { Industry, ResponseMeta, Business } from "@/lib/types"
 import { GateBanner } from "@/components/dashboard/gate-banner"
 import { usePermissions } from "@/contexts/PermissionsContext"
 import { canPerformAction } from "@/lib/permissions"
+import { DiscoveryCompletionModal } from "@/components/dashboard/discovery-completion-modal"
 import {
   Table,
   TableBody,
@@ -55,10 +56,10 @@ export default function DiscoverPage() {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([])
   const [industries, setIndustries] = useState<Industry[]>([])
   const [loadingData, setLoadingData] = useState(true)
-  const [loading, setLoading] = useState(false)
   const [searching, setSearching] = useState(false)
   const [networkError, setNetworkError] = useState<string | null>(null)
   const [discoveryRunId, setDiscoveryRunId] = useState<string | null>(null)
+  const [discoveryDatasetId, setDiscoveryDatasetId] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<Business[]>([])
   const [searchMeta, setSearchMeta] = useState<ResponseMeta & { total_count?: number; total_pages?: number }>({
     plan_id: 'demo',
@@ -67,6 +68,12 @@ export default function DiscoverPage() {
     total_returned: 0,
   })
   const [polling, setPolling] = useState(false)
+  const [showCompletionModal, setShowCompletionModal] = useState(false)
+  const [completedDiscoveryRun, setCompletedDiscoveryRun] = useState<{
+    runId: string
+    datasetId: string
+    businessesFound: number
+  } | null>(null)
   const router = useRouter()
   const { toast } = useToast()
   const { permissions } = usePermissions()
@@ -140,13 +147,31 @@ export default function DiscoverPage() {
           clearInterval(interval)
           setPolling(false)
 
-          toast({
-            title: "Discovery completed",
-            description: `Found ${res.data.businesses_found || 0} businesses. Refreshing search results...`,
+          // Show completion modal with stored dataset_id
+          setCompletedDiscoveryRun({
+            runId,
+            datasetId: discoveryDatasetId || '',
+            businessesFound: res.data.businesses_found || 0,
           })
+          setShowCompletionModal(true)
 
-          // Refresh search results
-          handleSearch()
+          // Refresh search results from local database (don't trigger another discovery)
+          if (selectedMunicipality && selectedIndustry) {
+            try {
+              const searchRes = await api.searchBusinesses({
+                municipality_id: selectedMunicipality,
+                industry_id: selectedIndustry,
+                page: 1,
+                limit: 50,
+              })
+              if (searchRes.data) {
+                setSearchResults(searchRes.data)
+                setSearchMeta(searchRes.meta)
+              }
+            } catch (error) {
+              console.error('Error refreshing search results:', error)
+            }
+          }
         } else if (res.data?.status === 'failed') {
           clearInterval(interval)
           setPolling(false)
@@ -166,7 +191,7 @@ export default function DiscoverPage() {
     return () => clearInterval(interval)
   }
 
-  // Handle Search (local database)
+  // Handle Search - First search local database, then GEMI if no results
   const handleSearch = async () => {
     if (!selectedMunicipality || !selectedIndustry) {
       toast({
@@ -179,6 +204,7 @@ export default function DiscoverPage() {
 
     setSearching(true)
     try {
+      // Step 1: Search local database first
       const res = await api.searchBusinesses({
         municipality_id: selectedMunicipality,
         industry_id: selectedIndustry,
@@ -186,52 +212,27 @@ export default function DiscoverPage() {
         limit: 50,
       })
 
-      if (res.data) {
-        setSearchResults(res.data)
+      const totalCount = res.meta.total_count || (res.data?.length || 0)
+
+      if (totalCount > 0) {
+        // Found results in local database
+        setSearchResults(res.data || [])
         setSearchMeta(res.meta)
         toast({
           title: "Search completed",
-          description: `Found ${res.meta.total_count || res.data.length} businesses`,
+          description: `Found ${totalCount} businesses in local database`,
         })
-      } else {
-        setSearchResults([])
-        toast({
-          title: "No results",
-          description: "No businesses found matching your criteria",
-        })
+        setSearching(false)
+        return
       }
-    } catch (error) {
-      if (error instanceof NetworkError) {
-        toast({
-          title: "Network error",
-          description: error.message,
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Search failed",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        })
-      }
-    } finally {
-      setSearching(false)
-    }
-  }
 
-  // Handle Deep Discovery (GEMI API)
-  const handleDeepDiscovery = async () => {
-    if (!selectedMunicipality || !selectedIndustry) {
+      // Step 2: No local results - trigger GEMI discovery
       toast({
-        title: "Selection required",
-        description: "Please select municipality and industry",
-        variant: "destructive",
+        title: "No local results",
+        description: "Searching GEMI Registry for fresh data...",
+        duration: 3000,
       })
-      return
-    }
 
-    setLoading(true)
-    try {
       // Get gemi_id values from selected items
       const selectedMunicipalityObj = municipalities.find(m => m.id === selectedMunicipality)
       const selectedIndustryObj = industries.find(i => i.id === selectedIndustry)
@@ -253,7 +254,7 @@ export default function DiscoverPage() {
             : selectedIndustryObj.gemi_id)
         : undefined
       
-      const res = await api.startGemiDiscovery({
+      const discoveryRes = await api.startGemiDiscovery({
         municipality_gemi_id: municipalityGemiId,
         industry_gemi_id: industryGemiId,
         // Fallback to internal IDs if gemi_id not available
@@ -261,9 +262,11 @@ export default function DiscoverPage() {
         industry_id: industryGemiId ? undefined : selectedIndustry,
       })
 
-      if (res.data && res.data.length > 0) {
-        const runId = res.data[0].id
+      if (discoveryRes.data && discoveryRes.data.length > 0) {
+        const runId = discoveryRes.data[0].id
+        const datasetId = discoveryRes.data[0].dataset_id || ''
         setDiscoveryRunId(runId)
+        setDiscoveryDatasetId(datasetId)
         setPolling(true)
         startPolling(runId)
 
@@ -299,15 +302,16 @@ export default function DiscoverPage() {
         })
       } else {
         toast({
-          title: "Discovery failed",
+          title: "Search failed",
           description: error.message || "An unexpected error occurred",
           variant: "destructive",
         })
       }
     } finally {
-      setLoading(false)
+      setSearching(false)
     }
   }
+
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -427,44 +431,36 @@ export default function DiscoverPage() {
           {/* Info Box */}
           <Alert className="bg-primary/5 border-primary/20">
             <Info className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-foreground">GEMI Registry Integration</AlertTitle>
+            <AlertTitle className="text-foreground">Smart Search</AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              Search uses your local database. Deep Discovery fetches fresh data from the official GEMI Registry.
+              Search first checks your local database. If no results are found, it automatically fetches fresh data from the official GEMI Registry.
             </AlertDescription>
           </Alert>
 
-          {/* Action Buttons */}
+          {/* Action Button */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button
-              variant="outline"
               className={cn(
-                "flex-1 h-11",
+                "w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground",
                 !discoveryCheck.allowed && "opacity-50"
               )}
-              disabled={!selectedMunicipality || !selectedIndustry || searching || loading}
+              disabled={!selectedMunicipality || !selectedIndustry || searching || polling}
               onClick={handleSearch}
             >
-              <Search className="mr-2 w-4 h-4" />
-              {searching ? "Searching..." : "Search Local Database"}
-            </Button>
-
-            <Button
-              className={cn(
-                "flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground",
-                !discoveryCheck.allowed && "opacity-50"
-              )}
-              disabled={!selectedMunicipality || !selectedIndustry || loading || polling}
-              onClick={handleDeepDiscovery}
-            >
-              {polling ? (
+              {searching ? (
+                <>
+                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                  Searching...
+                </>
+              ) : polling ? (
                 <>
                   <Loader2 className="mr-2 w-4 h-4 animate-spin" />
                   Fetching from GEMI...
                 </>
               ) : (
                 <>
-                  <Sparkles className="mr-2 w-4 h-4" />
-                  Deep Discovery (GEMI)
+                  <Search className="mr-2 w-4 h-4" />
+                  Search
                 </>
               )}
             </Button>
@@ -483,7 +479,7 @@ export default function DiscoverPage() {
           <Alert className="bg-success/5 border-success/20">
             <Info className="h-4 w-4 text-success" />
             <AlertDescription className="text-sm text-muted-foreground">
-              Search is free. Deep Discovery fetches fresh data from GEMI Registry. You only pay when you export data.
+              Search is free. GEMI discovery fetches fresh data from the official registry. You only pay when you export data.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -562,19 +558,49 @@ export default function DiscoverPage() {
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              Use "Search" to quickly find businesses already in your database
+              Search automatically checks your local database first
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              Use "Deep Discovery" to fetch fresh data from the official GEMI Registry
+              If no local results are found, it fetches fresh data from GEMI Registry
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              Deep Discovery may take a few minutes due to API rate limits
+              GEMI discovery may take a few minutes due to API rate limits
             </li>
           </ul>
         </CardContent>
       </Card>
+
+      {/* Discovery Completion Modal */}
+      {completedDiscoveryRun && (
+        <DiscoveryCompletionModal
+          open={showCompletionModal}
+          onOpenChange={setShowCompletionModal}
+          discoveryRunId={completedDiscoveryRun.runId}
+          datasetId={completedDiscoveryRun.datasetId}
+          businessesFound={completedDiscoveryRun.businessesFound}
+          onSave={() => {
+            toast({
+              title: "Dataset saved",
+              description: "Your discovery has been saved to the dataset.",
+            })
+          }}
+          onExport={() => {
+            toast({
+              title: "Redirecting to export",
+              description: "Preparing export options...",
+            })
+          }}
+          onAbort={() => {
+            toast({
+              title: "Dataset aborted",
+              description: "The discovery dataset has been aborted.",
+              variant: "destructive",
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

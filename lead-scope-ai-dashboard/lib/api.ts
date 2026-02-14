@@ -569,8 +569,8 @@ class ApiClient {
     industry_id?: string; // Legacy support
     city_id?: string; // Legacy support
     dataset_id?: string;
-  }): Promise<{ data: Array<{ id: string; status: string; created_at: string }> | null; meta: ResponseMeta }> {
-    const result = await this.request<Array<{ id: string; status: string; created_at: string }>>('/api/discovery', {
+  }): Promise<{ data: Array<{ id: string; dataset_id?: string; status: string; created_at: string }> | null; meta: ResponseMeta }> {
+    const result = await this.request<Array<{ id: string; dataset_id?: string; status: string; created_at: string }>>('/api/discovery', {
       method: 'POST',
       body: JSON.stringify(input),
     });
@@ -897,6 +897,37 @@ class ApiClient {
       completed_at: string | null;
       cost_estimates?: CostEstimates | null;
     }>>(`/refresh?dataset_id=${datasetId}`);
+  }
+
+  /**
+   * Get all discovery runs for the current user
+   * @returns Promise with all discovery runs and metadata
+   */
+  async getAllDiscoveryRuns(): Promise<{
+    data: Array<{
+      id: string;
+      dataset_id: string;
+      status: 'running' | 'completed' | 'failed';
+      created_at: string;
+      completed_at: string | null;
+      businesses_found: number;
+      dataset_name: string;
+      industry_name: string;
+      city_name: string | null;
+    }> | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<Array<{
+      id: string;
+      dataset_id: string;
+      status: 'running' | 'completed' | 'failed';
+      created_at: string;
+      completed_at: string | null;
+      businesses_found: number;
+      dataset_name: string;
+      industry_name: string;
+      city_name: string | null;
+    }>>('/api/discovery/runs');
   }
 
   /**

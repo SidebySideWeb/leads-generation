@@ -150,16 +150,32 @@ export default function ExportsPage() {
     }
 
     try {
-      // Always use fetch to ensure cookies are sent for authentication
-      const response = await fetch(exportItem.download_url, {
+      // Use Next.js API route for downloads (proxies to backend)
+      // This ensures cookies are sent correctly and CORS is handled
+      const downloadUrl = exportItem.download_url.includes('/api/exports/')
+        ? exportItem.download_url
+        : `/api/exports/${exportItem.id}/download`
+
+      const response = await fetch(downloadUrl, {
         credentials: 'include',
         method: 'GET',
       })
       
       if (!response.ok) {
+        // Check if export is still processing
+        if (response.status === 202) {
+          const errorData = await response.json().catch(() => ({}))
+          toast({
+            title: "Export still processing",
+            description: errorData.message || "Please wait for the export to complete",
+            variant: "default",
+          })
+          return
+        }
+
         // If response is not OK, try to get error message
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Download failed with status ${response.status}`)
+        throw new Error(errorData.error || errorData.message || `Download failed with status ${response.status}`)
       }
 
       // Get the blob from response
@@ -168,10 +184,20 @@ export default function ExportsPage() {
       // Create a temporary URL for the blob
       const url = window.URL.createObjectURL(blob)
       
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `export-${exportItem.id}.${exportItem.format}`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+      
       // Create a temporary anchor element and trigger download
       const a = document.createElement('a')
       a.href = url
-      a.download = `export-${exportItem.id}.${exportItem.format}`
+      a.download = filename
       a.style.display = 'none'
       document.body.appendChild(a)
       a.click()

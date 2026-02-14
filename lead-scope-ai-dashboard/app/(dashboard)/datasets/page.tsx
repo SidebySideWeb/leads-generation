@@ -63,6 +63,17 @@ export default async function DatasetsPage() {
   }
   let networkError: string | null = null
   let datasetCompleteness: Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }> = {}
+  let allDiscoveryRuns: Array<{
+    id: string;
+    dataset_id: string;
+    status: 'running' | 'completed' | 'failed';
+    created_at: string;
+    completed_at: string | null;
+    businesses_found: number;
+    dataset_name: string;
+    industry_name: string;
+    city_name: string | null;
+  }> | null = null
 
   try {
     console.log('[DatasetsPage] Fetching datasets from API...')
@@ -121,6 +132,17 @@ export default async function DatasetsPage() {
       console.log('[DatasetsPage] No datasets in response')
     }
     meta = response.meta
+
+    // Load all discovery runs
+    try {
+      const discoveryRunsRes = await api.getAllDiscoveryRuns()
+      if (discoveryRunsRes.data) {
+        allDiscoveryRuns = discoveryRunsRes.data
+      }
+    } catch (error) {
+      console.error('[DatasetsPage] Error loading discovery runs:', error)
+      // Don't fail the page if discovery runs fail to load
+    }
   } catch (error) {
     console.error('[DatasetsPage] Error loading datasets:', error)
     if (error instanceof NetworkError) {
@@ -335,6 +357,76 @@ export default async function DatasetsPage() {
                 Showing {meta.total_returned} of {meta.total_available} datasets. Upgrade to see all.
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All Discoveries Section */}
+      {allDiscoveryRuns && allDiscoveryRuns.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-card-foreground">All Discoveries</CardTitle>
+                <CardDescription>
+                  History of all discovery runs across all datasets
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-muted-foreground">Dataset</TableHead>
+                    <TableHead className="text-muted-foreground">Industry</TableHead>
+                    <TableHead className="text-muted-foreground">City</TableHead>
+                    <TableHead className="text-muted-foreground">Status</TableHead>
+                    <TableHead className="text-muted-foreground text-right">Businesses</TableHead>
+                    <TableHead className="text-muted-foreground">Started</TableHead>
+                    <TableHead className="text-muted-foreground">Completed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allDiscoveryRuns.map((run) => (
+                    <TableRow key={run.id} className="border-border hover:bg-muted/50">
+                      <TableCell className="font-medium text-foreground">
+                        <Link
+                          href={`/datasets/${run.dataset_id}`}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {run.dataset_name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{run.industry_name || '—'}</TableCell>
+                      <TableCell className="text-muted-foreground">{run.city_name || '—'}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            run.status === 'completed' && "bg-success/10 text-success border-success/20",
+                            run.status === 'running' && "bg-primary/10 text-primary border-primary/20",
+                            run.status === 'failed' && "bg-destructive/10 text-destructive border-destructive/20"
+                          )}
+                        >
+                          {run.status === 'completed' ? 'Completed' : run.status === 'running' ? 'Running' : 'Failed'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-right">
+                        {run.businesses_found.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(run.created_at)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {run.completed_at ? formatDate(run.completed_at) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

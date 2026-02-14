@@ -126,6 +126,18 @@ function BillingPageInner() {
   const [loadingData, setLoadingData] = useState(true)
   const [businessesExported, setBusinessesExported] = useState<number>(0)
   const [showCreditModal, setShowCreditModal] = useState(false)
+  const [allExports, setAllExports] = useState<ExportResult[]>([])
+  const [allDiscoveries, setAllDiscoveries] = useState<Array<{
+    id: string;
+    dataset_id: string;
+    status: 'running' | 'completed' | 'failed';
+    created_at: string;
+    completed_at: string | null;
+    businesses_found: number;
+    dataset_name: string;
+    industry_name: string;
+    city_name: string | null;
+  }>>([])
 
   useEffect(() => {
     // Handle Stripe redirect
@@ -162,12 +174,13 @@ function BillingPageInner() {
   const loadData = async () => {
     try {
       setLoadingData(true)
-      const [userRes, subscriptionRes, usageRes, invoicesRes, exportsRes] = await Promise.all([
+      const [userRes, subscriptionRes, usageRes, invoicesRes, exportsRes, discoveriesRes] = await Promise.all([
         api.getCurrentUser(),
         api.getSubscription(),
         api.getUsage(),
         api.getInvoices(),
         api.getExports().catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } })),
+        api.getAllDiscoveryRuns().catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } })),
       ])
 
       if (userRes.data) {
@@ -188,6 +201,7 @@ function BillingPageInner() {
 
       // Calculate businesses exported this month
       if (exportsRes.data) {
+        setAllExports(exportsRes.data)
         const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
         const thisMonthExports = exportsRes.data.filter(exp => {
           const exportDate = new Date(exp.created_at).toISOString().slice(0, 7)
@@ -195,6 +209,11 @@ function BillingPageInner() {
         })
         const totalBusinesses = thisMonthExports.reduce((sum, exp) => sum + (exp.total_rows || 0), 0)
         setBusinessesExported(totalBusinesses)
+      }
+
+      // Load all discoveries
+      if (discoveriesRes.data) {
+        setAllDiscoveries(discoveriesRes.data)
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
@@ -531,6 +550,224 @@ function BillingPageInner() {
           })}
         </div>
       </div>
+
+      {/* Metrics & History Section */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Recent Discoveries */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-card-foreground">Πρόσφατες Discoveries</CardTitle>
+            <CardDescription>Ιστορικό discovery runs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingData ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : allDiscoveries.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Δεν υπάρχουν discoveries ακόμα</p>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {allDiscoveries.slice(0, 10).map((discovery) => (
+                  <div key={discovery.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            discovery.status === 'completed' && "bg-success/10 text-success border-success/20",
+                            discovery.status === 'running' && "bg-primary/10 text-primary border-primary/20",
+                            discovery.status === 'failed' && "bg-destructive/10 text-destructive border-destructive/20"
+                          )}
+                        >
+                          {discovery.status === 'completed' ? 'Ολοκληρώθηκε' : 
+                           discovery.status === 'running' ? 'Σε εξέλιξη' : 
+                           'Απέτυχε'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {discovery.dataset_name || discovery.industry_name || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(discovery.created_at).toLocaleDateString("el-GR", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {discovery.businesses_found > 0 && (
+                          <span className="ml-2">• {discovery.businesses_found.toLocaleString()} επιχειρήσεις</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Exports */}
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-card-foreground">Πρόσφατα Exports</CardTitle>
+            <CardDescription>Ιστορικό exports</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingData ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : allExports.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Δεν υπάρχουν exports ακόμα</p>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {allExports.slice(0, 10).map((exportItem) => {
+                  const status = exportItem.status || (exportItem.download_url ? 'completed' : 'processing')
+                  return (
+                    <div key={exportItem.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs",
+                              status === 'completed' && "bg-success/10 text-success border-success/20",
+                              status === 'processing' && "bg-primary/10 text-primary border-primary/20",
+                              status === 'failed' && "bg-destructive/10 text-destructive border-destructive/20"
+                            )}
+                          >
+                            {status === 'completed' ? 'Ολοκληρώθηκε' : 
+                             status === 'processing' ? 'Σε εξέλιξη' : 
+                             'Απέτυχε'}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">
+                            {exportItem.format.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(exportItem.created_at).toLocaleDateString("el-GR", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          {exportItem.total_rows > 0 && (
+                            <span className="ml-2">• {exportItem.total_rows.toLocaleString()} rows</span>
+                          )}
+                        </div>
+                      </div>
+                      {status === 'completed' && exportItem.download_url && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => {
+                            const a = document.createElement('a')
+                            a.href = exportItem.download_url!
+                            a.download = `export-${exportItem.id}.${exportItem.format}`
+                            a.click()
+                          }}
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Monthly Metrics */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="text-card-foreground">Μετρικές Χρήσης</CardTitle>
+          <CardDescription>Στατιστικά των τελευταίων 6 μηνών</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingData ? (
+            <div className="space-y-4">
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Calculate monthly metrics */}
+              {(() => {
+                const months: Array<{ month: string; discoveries: number; exports: number; businesses: number }> = []
+                const now = new Date()
+                
+                for (let i = 5; i >= 0; i--) {
+                  const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+                  const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+                  const monthName = date.toLocaleDateString("el-GR", { month: "long", year: "numeric" })
+                  
+                  const monthDiscoveries = allDiscoveries.filter(d => {
+                    const discoveryDate = new Date(d.created_at)
+                    return discoveryDate.getFullYear() === date.getFullYear() &&
+                           discoveryDate.getMonth() === date.getMonth()
+                  }).length
+                  
+                  const monthExports = allExports.filter(e => {
+                    const exportDate = new Date(e.created_at)
+                    return exportDate.getFullYear() === date.getFullYear() &&
+                           exportDate.getMonth() === date.getMonth()
+                  })
+                  
+                  const monthBusinesses = monthExports.reduce((sum, e) => sum + (e.total_rows || 0), 0)
+                  
+                  months.push({
+                    month: monthName,
+                    discoveries: monthDiscoveries,
+                    exports: monthExports.length,
+                    businesses: monthBusinesses,
+                  })
+                }
+                
+                return (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead className="text-muted-foreground">Μήνας</TableHead>
+                          <TableHead className="text-muted-foreground text-right">Discoveries</TableHead>
+                          <TableHead className="text-muted-foreground text-right">Exports</TableHead>
+                          <TableHead className="text-muted-foreground text-right">Επιχειρήσεις</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {months.map((monthData, idx) => (
+                          <TableRow key={idx} className="border-border hover:bg-muted/50">
+                            <TableCell className="font-medium text-foreground">{monthData.month}</TableCell>
+                            <TableCell className="text-muted-foreground text-right">
+                              {monthData.discoveries}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-right">
+                              {monthData.exports}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-right">
+                              {monthData.businesses.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Invoices */}
       <Card className="bg-card border-border">

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Info, Download, Euro, AlertCircle, Database } from "lucide-react"
+import { Loader2, Info, Download, AlertCircle, Database, FileSpreadsheet } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -161,33 +161,54 @@ export function ExportModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
-          <DialogTitle>Create Export</DialogTitle>
-          <DialogDescription>
-            Select a dataset and format to create an export. The export will include all businesses in the dataset.
-          </DialogDescription>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+              <Download className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl">Create Export</DialogTitle>
+              <DialogDescription className="text-sm">
+                Export your dataset in your preferred format
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Dataset Selector */}
-          {datasets.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="dataset-select">Select Dataset</Label>
+          <div className="space-y-3">
+            <Label htmlFor="dataset-select" className="text-sm font-medium text-foreground">
+              Select Dataset
+            </Label>
+            {loadingDatasets ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 rounded-lg border border-border bg-muted/30">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading datasets...
+              </div>
+            ) : datasets.length > 0 ? (
               <Select
                 value={selectedDatasetId}
                 onValueChange={setSelectedDatasetId}
                 disabled={loading || loadingDatasets}
               >
-                <SelectTrigger id="dataset-select">
+                <SelectTrigger id="dataset-select" className="h-12">
                   <SelectValue placeholder="Select a dataset">
                     {selectedDataset ? (
-                      <div className="flex items-center gap-2">
-                        <Database className="w-4 h-4" />
-                        <span>{selectedDataset.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({selectedDataset.businesses.toLocaleString()} businesses)
-                        </span>
+                      <div className="flex items-center gap-3 w-full">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10">
+                          <Database className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <div className="font-medium text-foreground">{selectedDataset.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {selectedDataset.city} • {selectedDataset.industry}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedDataset.businesses.toLocaleString()} businesses
+                        </div>
                       </div>
                     ) : (
                       "Select a dataset"
@@ -196,56 +217,97 @@ export function ExportModal({
                 </SelectTrigger>
                 <SelectContent>
                   {datasets.map((ds) => (
-                    <SelectItem key={ds.id} value={ds.id}>
-                      <div className="flex items-center gap-2">
-                        <Database className="w-4 h-4" />
-                        <span>{ds.name}</span>
-                        <span className="text-xs text-muted-foreground ml-2">
-                          ({ds.businesses.toLocaleString()} businesses)
-                        </span>
+                    <SelectItem key={ds.id} value={ds.id} className="py-3">
+                      <div className="flex items-center gap-3 w-full">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10">
+                          <Database className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-foreground truncate">{ds.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {ds.city} • {ds.industry}
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {ds.businesses.toLocaleString()} businesses
+                        </div>
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
-
-          {loadingDatasets && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading datasets...
-            </div>
-          )}
+            ) : (
+              <Alert className="bg-muted/50 border-border">
+                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                <AlertDescription className="text-sm text-muted-foreground">
+                  No datasets available. Please create a dataset first.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
 
           {/* Format Selector */}
           {selectedDataset && (
-            <div className="space-y-2">
-              <Label htmlFor="format-select">Export Format</Label>
+            <div className="space-y-3">
+              <Label htmlFor="format-select" className="text-sm font-medium text-foreground">
+                Export Format
+              </Label>
               <Select
                 value={format}
                 onValueChange={(value) => setFormat(value as 'csv' | 'xlsx')}
                 disabled={loading || loadingDatasets}
               >
-                <SelectTrigger id="format-select">
+                <SelectTrigger id="format-select" className="h-12">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
-                  <SelectItem value="csv">CSV (.csv)</SelectItem>
+                  <SelectItem value="xlsx" className="py-3">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-primary" />
+                      <div>
+                        <div className="font-medium">Excel (.xlsx)</div>
+                        <div className="text-xs text-muted-foreground">Recommended for large datasets</div>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="csv" className="py-3">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-primary" />
+                      <div>
+                        <div className="font-medium">CSV (.csv)</div>
+                        <div className="text-xs text-muted-foreground">Compatible with all spreadsheet apps</div>
+                      </div>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
 
-          {/* Dataset Info */}
+          {/* Dataset Summary */}
           {selectedDataset && (
-            <Alert className="bg-muted/50 border-border">
-              <Info className="h-4 w-4 text-muted-foreground" />
-              <AlertDescription className="text-sm text-muted-foreground">
-                This export will include all <strong className="text-foreground">{datasetSize.toLocaleString()} businesses</strong> from the selected dataset.
-              </AlertDescription>
-            </Alert>
+            <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Dataset</span>
+                <span className="font-medium text-foreground">{selectedDataset.name}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Location</span>
+                <span className="font-medium text-foreground">{selectedDataset.city}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Industry</span>
+                <span className="font-medium text-foreground">{selectedDataset.industry}</span>
+              </div>
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total Businesses</span>
+                  <span className="text-lg font-bold text-primary">
+                    {datasetSize.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Info Alert */}
@@ -253,7 +315,7 @@ export function ExportModal({
             <Alert className="bg-primary/5 border-primary/20">
               <Info className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm text-muted-foreground">
-                The export will be processed in the background. You'll be able to download it from the exports page when ready.
+                The export will be processed in the background. You'll receive a notification when it's ready to download.
               </AlertDescription>
             </Alert>
           )}

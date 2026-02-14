@@ -37,9 +37,7 @@ interface ExportModalProps {
   prefectureId?: string
 }
 
-// Export pricing: €0.01 per row
-const EXPORT_PRICE_PER_ROW = 0.01
-const MAX_EXPORT_ROWS = 1000
+// Note: Exports now export the entire dataset, no row range selection
 
 export function ExportModal({ 
   open, 
@@ -52,8 +50,7 @@ export function ExportModal({
   prefectureId,
 }: ExportModalProps) {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>(initialDataset?.id || '')
-  const [startRow, setStartRow] = useState(1)
-  const [endRow, setEndRow] = useState(100)
+  const [format, setFormat] = useState<'csv' | 'xlsx'>('xlsx')
   const [loading, setLoading] = useState(false)
   const [loadingDatasets, setLoadingDatasets] = useState(false)
   const [datasets, setDatasets] = useState<Dataset[]>(availableDatasets)
@@ -102,33 +99,9 @@ export function ExportModal({
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId)
   const datasetSize = selectedDataset?.businesses || 0
 
-  // Set default end row based on dataset size
-  useEffect(() => {
-    if (selectedDataset && datasetSize > 0) {
-      const defaultEnd = Math.min(100, datasetSize)
-      setEndRow(defaultEnd)
-      setStartRow(1)
-    }
-  }, [selectedDataset, datasetSize])
-
-  // Calculate row count and price
-  const rowCount = useMemo(() => {
-    return Math.max(0, endRow - startRow + 1)
-  }, [startRow, endRow])
-
-  const price = useMemo(() => {
-    if (rowCount > MAX_EXPORT_ROWS) return null
-    return rowCount * EXPORT_PRICE_PER_ROW
-  }, [rowCount])
-
   const isValid = useMemo(() => {
-    return (
-      startRow >= 1 &&
-      endRow >= startRow &&
-      rowCount <= MAX_EXPORT_ROWS &&
-      rowCount > 0
-    )
-  }, [startRow, endRow, rowCount])
+    return !!selectedDatasetId && !!selectedDataset
+  }, [selectedDatasetId, selectedDataset])
 
   const handleExport = async () => {
     if (!selectedDatasetId) {
@@ -140,19 +113,10 @@ export function ExportModal({
       return
     }
 
-    if (!isValid) {
-      toast({
-        title: "Invalid range",
-        description: `Please select a valid row range (max ${MAX_EXPORT_ROWS} rows)`,
-        variant: "destructive",
-      })
-      return
-    }
-
     setLoading(true)
     try {
       // Use the runExport endpoint which creates an async export job
-      const response = await api.runExport(selectedDatasetId, 'xlsx')
+      const response = await api.runExport(selectedDatasetId, format)
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -191,8 +155,6 @@ export function ExportModal({
 
   const handleClose = () => {
     if (!loading) {
-      setStartRow(1)
-      setEndRow(100)
       onOpenChange(false)
     }
   }
@@ -201,9 +163,9 @@ export function ExportModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Export Businesses</DialogTitle>
+          <DialogTitle>Create Export</DialogTitle>
           <DialogDescription>
-            Select a row range to export. Maximum {MAX_EXPORT_ROWS} rows per export.
+            Select a dataset and format to create an export. The export will include all businesses in the dataset.
           </DialogDescription>
         </DialogHeader>
 
@@ -256,112 +218,44 @@ export function ExportModal({
             </div>
           )}
 
-          {/* Row Range Selector */}
+          {/* Format Selector */}
           {selectedDataset && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="start-row">Start Row</Label>
-                <Input
-                  id="start-row"
-                  type="number"
-                  min={1}
-                  max={datasetSize || 10000}
-                  value={startRow}
-                  onChange={(e) => {
-                    const value = Math.max(1, parseInt(e.target.value) || 1)
-                    setStartRow(value)
-                    if (value > endRow) {
-                      setEndRow(value)
-                    }
-                  }}
-                  disabled={loading}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end-row">End Row</Label>
-                <Input
-                  id="end-row"
-                  type="number"
-                  min={startRow}
-                  max={Math.min(startRow + MAX_EXPORT_ROWS - 1, datasetSize || 10000)}
-                  value={endRow}
-                  onChange={(e) => {
-                    const value = Math.min(
-                      parseInt(e.target.value) || startRow,
-                      startRow + MAX_EXPORT_ROWS - 1,
-                      datasetSize || 10000
-                    )
-                    setEndRow(value)
-                  }}
-                  disabled={loading}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="format-select">Export Format</Label>
+              <Select
+                value={format}
+                onValueChange={(value) => setFormat(value as 'csv' | 'xlsx')}
+                disabled={loading || loadingDatasets}
+              >
+                <SelectTrigger id="format-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
+                  <SelectItem value="csv">CSV (.csv)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          )}
 
-                {/* Dataset Info */}
-                {selectedDataset && (
-                  <Alert className="bg-muted/50 border-border">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                    <AlertDescription className="text-sm text-muted-foreground">
-                      Dataset contains {datasetSize.toLocaleString()} businesses.
-                      {endRow > datasetSize && (
-                        <span className="font-medium text-foreground"> Only {datasetSize.toLocaleString()} will be exported.</span>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Validation Error */}
-                {!isValid && rowCount > 0 && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      {rowCount > MAX_EXPORT_ROWS
-                        ? `Maximum ${MAX_EXPORT_ROWS} rows allowed per export`
-                        : "Invalid row range"}
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            )}
-
-          {/* Price Summary - Only show if row range is used */}
+          {/* Dataset Info */}
           {selectedDataset && (
-            <>
-              <div className="p-4 rounded-lg border border-border bg-card">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Row Count:</span>
-                    <span className="font-medium text-foreground">
-                      {rowCount.toLocaleString()} {rowCount === 1 ? 'row' : 'rows'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-border">
-                    <span className="text-sm text-muted-foreground">Price:</span>
-                    <div className="flex items-center gap-2">
-                      <Euro className="w-4 h-4 text-primary" />
-                      <span className="text-lg font-bold text-primary">
-                        {price !== null ? price.toFixed(2) : '—'}
-                      </span>
-                    </div>
-                  </div>
-                  {price !== null && (
-                    <p className="text-xs text-muted-foreground text-center pt-2 border-t border-border">
-                      €{EXPORT_PRICE_PER_ROW.toFixed(2)} per row
-                    </p>
-                  )}
-                </div>
-              </div>
+            <Alert className="bg-muted/50 border-border">
+              <Info className="h-4 w-4 text-muted-foreground" />
+              <AlertDescription className="text-sm text-muted-foreground">
+                This export will include all <strong className="text-foreground">{datasetSize.toLocaleString()} businesses</strong> from the selected dataset.
+              </AlertDescription>
+            </Alert>
+          )}
 
-              {/* Info Alert */}
-              <Alert className="bg-primary/5 border-primary/20">
-                <Info className="h-4 w-4 text-primary" />
-                <AlertDescription className="text-sm text-muted-foreground">
-                  The export will be processed in the background. You'll be able to download it from the exports page when ready.
-                </AlertDescription>
-              </Alert>
-            </>
+          {/* Info Alert */}
+          {selectedDataset && (
+            <Alert className="bg-primary/5 border-primary/20">
+              <Info className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-sm text-muted-foreground">
+                The export will be processed in the background. You'll be able to download it from the exports page when ready.
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 

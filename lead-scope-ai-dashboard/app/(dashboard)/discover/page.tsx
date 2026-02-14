@@ -69,6 +69,7 @@ export default function DiscoverPage() {
   })
   const [polling, setPolling] = useState(false)
   const [showCompletionModal, setShowCompletionModal] = useState(false)
+  const [discoveryStatus, setDiscoveryStatus] = useState<'completed' | 'failed'>('completed')
   const [completedDiscoveryRun, setCompletedDiscoveryRun] = useState<{
     runId: string
     datasetId: string
@@ -176,11 +177,14 @@ export default function DiscoverPage() {
           clearInterval(interval)
           setPolling(false)
 
-          toast({
-            title: "Discovery failed",
-            description: "The discovery process encountered an error.",
-            variant: "destructive",
+          // Show completion modal with failed status
+          setCompletedDiscoveryRun({
+            runId,
+            datasetId: discoveryDatasetId || '',
+            businessesFound: 0,
           })
+          setShowCompletionModal(true)
+          setDiscoveryStatus('failed')
         }
       } catch (error) {
         console.error('Polling error:', error)
@@ -580,6 +584,7 @@ export default function DiscoverPage() {
           discoveryRunId={completedDiscoveryRun.runId}
           datasetId={completedDiscoveryRun.datasetId}
           businessesFound={completedDiscoveryRun.businessesFound}
+          status={discoveryStatus}
           onSave={() => {
             toast({
               title: "Dataset saved",

@@ -402,11 +402,11 @@ export default function DiscoverPage() {
             )}
           </div>
 
-          {/* Town (Municipality) Selection - Multi-select, Optional */}
+          {/* Town (Municipality) Selection - Multi-select, Auto-selected from prefectures */}
           <div className="space-y-2">
             <Label htmlFor="municipality" className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              Town (Municipality) <span className="text-xs text-muted-foreground">(Optional)</span>
+              Town (Municipality) <span className="text-xs text-muted-foreground">(Auto-selected from prefectures)</span>
             </Label>
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
@@ -420,15 +420,15 @@ export default function DiscoverPage() {
                 onChange={setSelectedMunicipalities}
                 placeholder={
                   selectedPrefectures.length > 0
-                    ? "Select one or more towns (optional)"
-                    : "Select regions first, or select towns directly"
+                    ? "All municipalities from selected prefectures (you can deselect specific ones)"
+                    : "Select regions first to see municipalities"
                 }
-                disabled={false}
+                disabled={selectedPrefectures.length === 0}
                 className="h-11"
               />
             )}
             <p className="text-xs text-muted-foreground">
-              You can search by prefecture only, or select specific municipalities. At least one prefecture or municipality is required.
+              When you select a prefecture, all municipalities in that prefecture are automatically selected. You can deselect specific municipalities if needed.
             </p>
           </div>
 

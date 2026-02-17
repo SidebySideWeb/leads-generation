@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Search, Building2, MapPin, Info, Sparkles, Globe, Mail, Phone, Loader2 } from "lucide-react"
 import { api, NetworkError } from "@/lib/api"
@@ -49,9 +50,9 @@ interface Municipality {
 }
 
 export default function DiscoverPage() {
-  const [selectedPrefecture, setSelectedPrefecture] = useState("")
-  const [selectedMunicipality, setSelectedMunicipality] = useState("")
-  const [selectedIndustry, setSelectedIndustry] = useState("")
+  const [selectedPrefectures, setSelectedPrefectures] = useState<string[]>([])
+  const [selectedMunicipalities, setSelectedMunicipalities] = useState<string[]>([])
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([])
   const [prefectures, setPrefectures] = useState<Prefecture[]>([])
   const [municipalities, setMunicipalities] = useState<Municipality[]>([])
   const [industries, setIndustries] = useState<Industry[]>([])
@@ -111,15 +112,27 @@ export default function DiscoverPage() {
     loadData()
   }, [])
 
-  // Load municipalities when prefecture changes
+  // Load municipalities when prefectures change
   useEffect(() => {
-    if (selectedPrefecture) {
+    if (selectedPrefectures.length > 0) {
       async function loadMunicipalities() {
         try {
-          const res = await api.getMunicipalities(selectedPrefecture)
-          if (res.data) {
-            setMunicipalities(res.data)
+          // Load municipalities for all selected prefectures
+          const allMunicipalities: Municipality[] = []
+          for (const prefectureId of selectedPrefectures) {
+            const res = await api.getMunicipalities(prefectureId)
+            if (res.data) {
+              allMunicipalities.push(...res.data)
+            }
           }
+          setMunicipalities(allMunicipalities)
+          
+          // Remove municipalities that are no longer in selected prefectures
+          setSelectedMunicipalities(prev => 
+            prev.filter(munId => 
+              allMunicipalities.some(m => m.id === munId)
+            )
+          )
         } catch (error) {
           console.error('Error loading municipalities:', error)
           toast({
@@ -130,13 +143,11 @@ export default function DiscoverPage() {
         }
       }
       loadMunicipalities()
-      // Clear municipality selection when prefecture changes
-      setSelectedMunicipality("")
     } else {
       setMunicipalities([])
-      setSelectedMunicipality("")
+      setSelectedMunicipalities([])
     }
-  }, [selectedPrefecture, toast])
+  }, [selectedPrefectures, toast])
 
   // Poll for discovery results
   const startPolling = (runId: string) => {
@@ -157,11 +168,12 @@ export default function DiscoverPage() {
           setShowCompletionModal(true)
 
           // Refresh search results from local database (don't trigger another discovery)
-          if (selectedMunicipality && selectedIndustry) {
+          if ((selectedPrefectures.length > 0 || selectedMunicipalities.length > 0) && selectedIndustries.length > 0) {
             try {
               const searchRes = await api.searchBusinesses({
-                municipality_id: selectedMunicipality,
-                industry_id: selectedIndustry,
+                prefecture_ids: selectedPrefectures.length > 0 ? selectedPrefectures : undefined,
+                municipality_ids: selectedMunicipalities.length > 0 ? selectedMunicipalities : undefined,
+                industry_ids: selectedIndustries,
                 page: 1,
                 limit: 50,
               })
@@ -197,10 +209,11 @@ export default function DiscoverPage() {
 
   // Handle Search - First search local database, then GEMI if no results
   const handleSearch = async () => {
-    if (!selectedMunicipality || !selectedIndustry) {
+    // Require at least prefecture OR municipality, and at least one industry
+    if ((selectedPrefectures.length === 0 && selectedMunicipalities.length === 0) || selectedIndustries.length === 0) {
       toast({
         title: "Selection required",
-        description: "Please select municipality and industry",
+        description: "Please select at least one prefecture or municipality, and at least one industry",
         variant: "destructive",
       })
       return
@@ -210,8 +223,9 @@ export default function DiscoverPage() {
     try {
       // Step 1: Search local database first
       const res = await api.searchBusinesses({
-        municipality_id: selectedMunicipality,
-        industry_id: selectedIndustry,
+        prefecture_ids: selectedPrefectures.length > 0 ? selectedPrefectures : undefined,
+        municipality_ids: selectedMunicipalities.length > 0 ? selectedMunicipalities : undefined,
+        industry_ids: selectedIndustries,
         page: 1,
         limit: 50,
       })
@@ -230,23 +244,35 @@ export default function DiscoverPage() {
         return
       }
 
-      // Step 2: No local results - trigger GEMI discovery
+      // Step 2: No local results - trigger GEMI discovery for each combination
+      // For now, we'll trigger discovery for the first municipality/prefecture and industry combination
+      // In the future, we could trigger multiple discoveries in parallel
       toast({
         title: "No local results",
         description: "Searching GEMI Registry for fresh data...",
         duration: 3000,
       })
 
-      // Get gemi_id values from selected items
-      const selectedMunicipalityObj = municipalities.find(m => m.id === selectedMunicipality)
-      const selectedIndustryObj = industries.find(i => i.id === selectedIndustry)
+      // Use first selected municipality/prefecture and industry for discovery
+      // TODO: Support multiple discoveries in parallel
+      const municipalityId = selectedMunicipalities.length > 0 
+        ? selectedMunicipalities[0] 
+        : (selectedPrefectures.length > 0 ? null : null)
       
-      if (!selectedMunicipalityObj || !selectedIndustryObj) {
-        throw new Error('Selected municipality or industry not found')
+      const industryId = selectedIndustries[0]
+      
+      // Get gemi_id values from selected items
+      const selectedMunicipalityObj = municipalityId 
+        ? municipalities.find(m => m.id === municipalityId)
+        : null
+      const selectedIndustryObj = industries.find(i => i.id === industryId)
+      
+      if (!selectedIndustryObj) {
+        throw new Error('Selected industry not found')
       }
       
       // Use gemi_id values (preferred) for GEMI API discovery
-      const municipalityGemiId = selectedMunicipalityObj.gemi_id 
+      const municipalityGemiId = selectedMunicipalityObj?.gemi_id 
         ? (typeof selectedMunicipalityObj.gemi_id === 'string' 
             ? parseInt(selectedMunicipalityObj.gemi_id, 10) 
             : selectedMunicipalityObj.gemi_id)
@@ -262,8 +288,8 @@ export default function DiscoverPage() {
         municipality_gemi_id: municipalityGemiId,
         industry_gemi_id: industryGemiId,
         // Fallback to internal IDs if gemi_id not available
-        municipality_id: municipalityGemiId ? undefined : selectedMunicipality,
-        industry_id: industryGemiId ? undefined : selectedIndustry,
+        municipality_id: municipalityGemiId ? undefined : municipalityId || undefined,
+        industry_id: industryGemiId ? undefined : industryId,
       })
 
       if (discoveryRes.data && discoveryRes.data.length > 0) {
@@ -345,90 +371,77 @@ export default function DiscoverPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Region (Prefecture) Selection */}
+          {/* Region (Prefecture) Selection - Multi-select */}
           <div className="space-y-2">
             <Label htmlFor="prefecture" className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              Region (Prefecture)
+              Region (Prefecture) <span className="text-xs text-muted-foreground">(Optional)</span>
             </Label>
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
             ) : (
-              <Select value={selectedPrefecture} onValueChange={setSelectedPrefecture}>
-                <SelectTrigger id="prefecture" className="h-11">
-                  <SelectValue placeholder="Select a region" />
-                </SelectTrigger>
-                <SelectContent>
-                  {prefectures.map((pref) => (
-                    <SelectItem key={pref.id} value={pref.id}>
-                      {pref.descr_en || pref.descr}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                options={prefectures.map(pref => ({
+                  label: pref.descr_en || pref.descr,
+                  value: pref.id,
+                }))}
+                selected={selectedPrefectures}
+                onChange={setSelectedPrefectures}
+                placeholder="Select one or more regions"
+                className="h-11"
+              />
             )}
           </div>
 
-          {/* Town (Municipality) Selection - Disabled until region selected */}
+          {/* Town (Municipality) Selection - Multi-select, Optional */}
           <div className="space-y-2">
             <Label htmlFor="municipality" className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              Town (Municipality)
+              Town (Municipality) <span className="text-xs text-muted-foreground">(Optional)</span>
             </Label>
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
             ) : (
-              <Select
-                value={selectedMunicipality}
-                onValueChange={setSelectedMunicipality}
-                disabled={!selectedPrefecture}
-              >
-                <SelectTrigger id="municipality" className="h-11">
-                  <SelectValue
-                    placeholder={
-                      selectedPrefecture
-                        ? "Select a town"
-                        : "Select a region first"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {municipalities.map((mun) => (
-                    <SelectItem key={mun.id} value={mun.id}>
-                      {mun.descr_en || mun.descr}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                options={municipalities.map(mun => ({
+                  label: mun.descr_en || mun.descr,
+                  value: mun.id,
+                }))}
+                selected={selectedMunicipalities}
+                onChange={setSelectedMunicipalities}
+                placeholder={
+                  selectedPrefectures.length > 0
+                    ? "Select one or more towns (optional)"
+                    : "Select regions first, or select towns directly"
+                }
+                disabled={false}
+                className="h-11"
+              />
             )}
-            {!selectedPrefecture && (
-              <p className="text-xs text-muted-foreground">
-                Please select a region first to enable town selection
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              You can search by prefecture only, or select specific municipalities. At least one prefecture or municipality is required.
+            </p>
           </div>
 
-          {/* Industry Selection */}
+          {/* Industry Selection - Multi-select */}
           <div className="space-y-2">
             <Label htmlFor="industry" className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-muted-foreground" />
-              Industry
+              Industry <span className="text-xs text-muted-foreground">(Required)</span>
             </Label>
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
             ) : (
-              <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
-                <SelectTrigger id="industry" className="h-11">
-                  <SelectValue placeholder="Select an industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  {industries.map((industry) => (
-                    <SelectItem key={industry.id} value={String(industry.id)}>
-                      {industry.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelect
+                options={industries.map(industry => ({
+                  label: industry.name,
+                  value: String(industry.id),
+                }))}
+                selected={selectedIndustries}
+                onChange={setSelectedIndustries}
+                placeholder="Select one or more industries"
+                className="h-11"
+              />
             )}
           </div>
 
@@ -448,7 +461,12 @@ export default function DiscoverPage() {
                 "w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground",
                 !discoveryCheck.allowed && "opacity-50"
               )}
-              disabled={!selectedMunicipality || !selectedIndustry || searching || polling}
+              disabled={
+                (selectedPrefectures.length === 0 && selectedMunicipalities.length === 0) || 
+                selectedIndustries.length === 0 || 
+                searching || 
+                polling
+              }
               onClick={handleSearch}
             >
               {searching ? (

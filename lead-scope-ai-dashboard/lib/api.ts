@@ -542,15 +542,28 @@ class ApiClient {
    */
   async searchBusinesses(params: {
     municipality_id?: string;
+    municipality_ids?: string[];
     industry_id?: string;
+    industry_ids?: string[];
     prefecture_id?: string;
+    prefecture_ids?: string[];
     page?: number;
     limit?: number;
   }): Promise<{ data: Business[] | null; meta: ResponseMeta & { total_count?: number; total_pages?: number } }> {
     const queryParams = new URLSearchParams();
+    // Support both single and array parameters for backward compatibility
     if (params.municipality_id) queryParams.append('municipality_id', params.municipality_id);
+    if (params.municipality_ids && params.municipality_ids.length > 0) {
+      params.municipality_ids.forEach(id => queryParams.append('municipality_ids', id));
+    }
     if (params.industry_id) queryParams.append('industry_id', params.industry_id);
+    if (params.industry_ids && params.industry_ids.length > 0) {
+      params.industry_ids.forEach(id => queryParams.append('industry_ids', id));
+    }
     if (params.prefecture_id) queryParams.append('prefecture_id', params.prefecture_id);
+    if (params.prefecture_ids && params.prefecture_ids.length > 0) {
+      params.prefecture_ids.forEach(id => queryParams.append('prefecture_ids', id));
+    }
     if (params.page) queryParams.append('page', String(params.page));
     if (params.limit) queryParams.append('limit', String(params.limit));
     

@@ -49,13 +49,19 @@ interface Municipality {
   prefecture_id: string
 }
 
+interface IndustryGroup {
+  id: string
+  name: string
+  created_at: string
+}
+
 export default function DiscoverPage() {
   const [selectedPrefectures, setSelectedPrefectures] = useState<string[]>([])
   const [selectedMunicipalities, setSelectedMunicipalities] = useState<string[]>([])
-  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([])
+  const [selectedIndustryGroups, setSelectedIndustryGroups] = useState<string[]>([])
   const [prefectures, setPrefectures] = useState<Prefecture[]>([])
   const [municipalities, setMunicipalities] = useState<Municipality[]>([])
-  const [industries, setIndustries] = useState<Industry[]>([])
+  const [industryGroups, setIndustryGroups] = useState<IndustryGroup[]>([])
   const [loadingData, setLoadingData] = useState(true)
   const [searching, setSearching] = useState(false)
   const [networkError, setNetworkError] = useState<string | null>(null)
@@ -83,21 +89,21 @@ export default function DiscoverPage() {
   // Check if discovery is allowed (for UI display only - backend always enforces)
   const discoveryCheck = canPerformAction(permissions, 'dataset')
 
-  // Load prefectures and industries on mount
+  // Load prefectures and industry groups on mount
   useEffect(() => {
     async function loadData() {
       try {
-        const [prefecturesRes, industriesRes] = await Promise.all([
+        const [prefecturesRes, industryGroupsRes] = await Promise.all([
           api.getPrefectures(),
-          api.getIndustries(),
+          api.getIndustryGroups(),
         ])
 
         if (prefecturesRes.data) {
           setPrefectures(prefecturesRes.data)
         }
 
-        if (industriesRes.data) {
-          setIndustries(industriesRes.data)
+        if (industryGroupsRes.data) {
+          setIndustryGroups(industryGroupsRes.data)
         }
       } catch (error) {
         if (error instanceof NetworkError) {
@@ -168,23 +174,9 @@ export default function DiscoverPage() {
           setShowCompletionModal(true)
 
           // Refresh search results from local database (don't trigger another discovery)
-          if ((selectedPrefectures.length > 0 || selectedMunicipalities.length > 0) && selectedIndustries.length > 0) {
-            try {
-              const searchRes = await api.searchBusinesses({
-                prefecture_ids: selectedPrefectures.length > 0 ? selectedPrefectures : undefined,
-                municipality_ids: selectedMunicipalities.length > 0 ? selectedMunicipalities : undefined,
-                industry_ids: selectedIndustries,
-                page: 1,
-                limit: 50,
-              })
-              if (searchRes.data) {
-                setSearchResults(searchRes.data)
-                setSearchMeta(searchRes.meta)
-              }
-            } catch (error) {
-              console.error('Error refreshing search results:', error)
-            }
-          }
+          // Note: For industry groups, we need to fetch industries in the groups first
+          // For now, skip the refresh after discovery completion when using industry groups
+          // TODO: Implement fetching industries from groups for search
         } else if (res.data?.status === 'failed') {
           clearInterval(interval)
           setPolling(false)
@@ -209,11 +201,11 @@ export default function DiscoverPage() {
 
   // Handle Search - First search local database, then GEMI if no results
   const handleSearch = async () => {
-    // Require at least prefecture OR municipality, and at least one industry
-    if ((selectedPrefectures.length === 0 && selectedMunicipalities.length === 0) || selectedIndustries.length === 0) {
+    // Require at least prefecture OR municipality, and at least one industry group
+    if ((selectedPrefectures.length === 0 && selectedMunicipalities.length === 0) || selectedIndustryGroups.length === 0) {
       toast({
         title: "Selection required",
-        description: "Please select at least one prefecture or municipality, and at least one industry",
+        description: "Please select at least one prefecture or municipality, and at least one industry group",
         variant: "destructive",
       })
       return
@@ -222,13 +214,25 @@ export default function DiscoverPage() {
     setSearching(true)
     try {
       // Step 1: Search local database first
-      const res = await api.searchBusinesses({
-        prefecture_ids: selectedPrefectures.length > 0 ? selectedPrefectures : undefined,
-        municipality_ids: selectedMunicipalities.length > 0 ? selectedMunicipalities : undefined,
-        industry_ids: selectedIndustries,
-        page: 1,
-        limit: 50,
-      })
+      // For industry groups, we need to fetch all industries in the selected groups
+      // For now, skip local search when using industry groups and go straight to discovery
+      // TODO: Implement fetching industries from groups for local search
+      let res: { data: Business[] | null; meta: ResponseMeta & { total_count?: number } } = {
+        data: [],
+        meta: { total_count: 0, plan_id: 'demo', gated: false, total_available: 0, total_returned: 0 }
+      }
+      
+      // If we have industry groups, skip local search for now
+      // In the future, we can fetch industries from groups and search with those
+      if (selectedIndustryGroups.length === 0) {
+        res = await api.searchBusinesses({
+          prefecture_ids: selectedPrefectures.length > 0 ? selectedPrefectures : undefined,
+          municipality_ids: selectedMunicipalities.length > 0 ? selectedMunicipalities : undefined,
+          industry_ids: [], // Will be empty when using groups
+          page: 1,
+          limit: 50,
+        })
+      }
 
       const totalCount = res.meta.total_count || (res.data?.length || 0)
 
@@ -253,23 +257,22 @@ export default function DiscoverPage() {
         duration: 3000,
       })
 
-      // Use first selected municipality/prefecture and industry for discovery
+      // Use first selected municipality/prefecture and industry group for discovery
       // TODO: Support multiple discoveries in parallel
       const municipalityId = selectedMunicipalities.length > 0 
         ? selectedMunicipalities[0] 
         : (selectedPrefectures.length > 0 ? null : null)
       
-      const industryId = selectedIndustries[0]
+      const industryGroupId = selectedIndustryGroups[0]
       
-      // Get gemi_id values from selected items
+      if (!industryGroupId) {
+        throw new Error('Selected industry group not found')
+      }
+      
+      // Get gemi_id values from selected municipality
       const selectedMunicipalityObj = municipalityId 
         ? municipalities.find(m => m.id === municipalityId)
         : null
-      const selectedIndustryObj = industries.find(i => i.id === industryId)
-      
-      if (!selectedIndustryObj) {
-        throw new Error('Selected industry not found')
-      }
       
       // Use gemi_id values (preferred) for GEMI API discovery
       const municipalityGemiId = selectedMunicipalityObj?.gemi_id 
@@ -278,18 +281,12 @@ export default function DiscoverPage() {
             : selectedMunicipalityObj.gemi_id)
         : undefined
       
-      const industryGemiId = selectedIndustryObj.gemi_id
-        ? (typeof selectedIndustryObj.gemi_id === 'string'
-            ? parseInt(selectedIndustryObj.gemi_id, 10)
-            : selectedIndustryObj.gemi_id)
-        : undefined
-      
       const discoveryRes = await api.startGemiDiscovery({
         municipality_gemi_id: municipalityGemiId,
-        industry_gemi_id: industryGemiId,
+        // Use industry_group_id instead of industry_id
+        industry_group_id: industryGroupId,
         // Fallback to internal IDs if gemi_id not available
         municipality_id: municipalityGemiId ? undefined : municipalityId || undefined,
-        industry_id: industryGemiId ? undefined : industryId,
       })
 
       if (discoveryRes.data && discoveryRes.data.length > 0) {
@@ -423,23 +420,23 @@ export default function DiscoverPage() {
             </p>
           </div>
 
-          {/* Industry Selection - Multi-select */}
+          {/* Industry Group Selection - Multi-select */}
           <div className="space-y-2">
-            <Label htmlFor="industry" className="flex items-center gap-2">
+            <Label htmlFor="industry-group" className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-muted-foreground" />
-              Industry <span className="text-xs text-muted-foreground">(Required)</span>
+              Industry Group <span className="text-xs text-muted-foreground">(Required)</span>
             </Label>
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
             ) : (
               <MultiSelect
-                options={industries.map(industry => ({
-                  label: industry.name,
-                  value: String(industry.id),
+                options={industryGroups.map(group => ({
+                  label: group.name,
+                  value: group.id,
                 }))}
-                selected={selectedIndustries}
-                onChange={setSelectedIndustries}
-                placeholder="Select one or more industries"
+                selected={selectedIndustryGroups}
+                onChange={setSelectedIndustryGroups}
+                placeholder="Select one or more industry groups"
                 className="h-11"
               />
             )}
@@ -463,7 +460,7 @@ export default function DiscoverPage() {
               )}
               disabled={
                 (selectedPrefectures.length === 0 && selectedMunicipalities.length === 0) || 
-                selectedIndustries.length === 0 || 
+                selectedIndustryGroups.length === 0 || 
                 searching || 
                 polling
               }

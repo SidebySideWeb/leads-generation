@@ -516,6 +516,20 @@ class ApiClient {
   }
 
   /**
+   * Get all industry groups
+   */
+  async getIndustryGroups(): Promise<{ data: Array<{ id: string; name: string; created_at: string }> | null; meta: ResponseMeta }> {
+    return this.request<Array<{ id: string; name: string; created_at: string }>>('/api/industry-groups');
+  }
+
+  /**
+   * Get industries in a specific industry group
+   */
+  async getIndustriesByGroup(groupId: string): Promise<{ data: Industry[] | null; meta: ResponseMeta }> {
+    return this.request<Industry[]>(`/api/industry-groups/${groupId}/industries`);
+  }
+
+  /**
    * Get prefectures (regions) from GEMI metadata
    * @returns Promise with prefectures and metadata
    */
@@ -580,6 +594,7 @@ class ApiClient {
     industry_gemi_id?: number;
     municipality_id?: string; // Legacy support
     industry_id?: string; // Legacy support
+    industry_group_id?: string; // New: industry group ID
     city_id?: string; // Legacy support
     dataset_id?: string;
   }): Promise<{ data: Array<{ id: string; dataset_id?: string; status: string; created_at: string }> | null; meta: ResponseMeta }> {

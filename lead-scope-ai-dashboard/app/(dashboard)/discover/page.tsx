@@ -133,12 +133,9 @@ export default function DiscoverPage() {
           }
           setMunicipalities(allMunicipalities)
           
-          // Remove municipalities that are no longer in selected prefectures
-          setSelectedMunicipalities(prev => 
-            prev.filter(munId => 
-              allMunicipalities.some(m => m.id === munId)
-            )
-          )
+          // Automatically select all municipalities from selected prefectures
+          const municipalityIds = allMunicipalities.map(m => m.id)
+          setSelectedMunicipalities(municipalityIds)
         } catch (error) {
           console.error('Error loading municipalities:', error)
           toast({
@@ -259,23 +256,38 @@ export default function DiscoverPage() {
 
       // Use first selected municipality/prefecture and industry group for discovery
       // TODO: Support multiple discoveries in parallel
-      const municipalityId = selectedMunicipalities.length > 0 
-        ? selectedMunicipalities[0] 
-        : (selectedPrefectures.length > 0 ? null : null)
-      
       const industryGroupId = selectedIndustryGroups[0]
       
       if (!industryGroupId) {
         throw new Error('Selected industry group not found')
       }
       
-      // Get gemi_id values from selected municipality
-      const selectedMunicipalityObj = municipalityId 
-        ? municipalities.find(m => m.id === municipalityId)
-        : null
+      // GEMI discovery requires a municipality, not just a prefecture
+      // If only prefectures are selected, we need to get a municipality from that prefecture
+      let municipalityId: string | null = null
+      let selectedMunicipalityObj: Municipality | null = null
       
-      // Use gemi_id values (preferred) for GEMI API discovery
-      const municipalityGemiId = selectedMunicipalityObj?.gemi_id 
+      if (selectedMunicipalities.length > 0) {
+        // Use the first selected municipality
+        municipalityId = selectedMunicipalities[0]
+        selectedMunicipalityObj = municipalities.find(m => m.id === municipalityId) || null
+      } else if (selectedPrefectures.length > 0 && municipalities.length > 0) {
+        // If only prefectures selected, use the first municipality from the first selected prefecture
+        const firstPrefectureId = selectedPrefectures[0]
+        const municipalityInPrefecture = municipalities.find(m => m.prefecture_id === firstPrefectureId)
+        if (municipalityInPrefecture) {
+          municipalityId = municipalityInPrefecture.id
+          selectedMunicipalityObj = municipalityInPrefecture
+        }
+      }
+      
+      // Validate that we have a municipality
+      if (!municipalityId || !selectedMunicipalityObj) {
+        throw new Error('GEMI discovery requires a municipality. Please select at least one municipality or ensure municipalities are available for the selected prefecture.')
+      }
+      
+      // Get gemi_id values from selected municipality
+      const municipalityGemiId = selectedMunicipalityObj.gemi_id 
         ? (typeof selectedMunicipalityObj.gemi_id === 'string' 
             ? parseInt(selectedMunicipalityObj.gemi_id, 10) 
             : selectedMunicipalityObj.gemi_id)
@@ -286,7 +298,7 @@ export default function DiscoverPage() {
         // Use industry_group_id instead of industry_id
         industry_group_id: industryGroupId,
         // Fallback to internal IDs if gemi_id not available
-        municipality_id: municipalityGemiId ? undefined : municipalityId || undefined,
+        municipality_id: municipalityGemiId ? undefined : municipalityId,
       })
 
       if (discoveryRes.data && discoveryRes.data.length > 0) {

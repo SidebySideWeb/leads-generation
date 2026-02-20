@@ -44,22 +44,27 @@ export function MultiSelect({
   maxCount = 2,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+  
+  // Ensure selected is always an array to prevent errors
+  const safeSelected = React.useMemo(() => {
+    return Array.isArray(selected) ? selected : []
+  }, [selected])
 
   const handleUnselect = (item: string) => {
-    onChange(selected.filter((i) => i !== item))
+    onChange(safeSelected.filter((i) => i !== item))
   }
 
   const handleSelect = (item: string) => {
-    if (selected.includes(item)) {
-      onChange(selected.filter((i) => i !== item))
+    if (safeSelected.includes(item)) {
+      onChange(safeSelected.filter((i) => i !== item))
     } else {
-      onChange([...selected, item])
+      onChange([...safeSelected, item])
     }
   }
 
-  const selectedOptions = options.filter((opt) => selected.includes(opt.value))
-  const displayCount = selected.length > maxCount ? maxCount : selected.length
-  const remainingCount = selected.length - displayCount
+  const selectedOptions = options.filter((opt) => safeSelected.includes(opt.value))
+  const displayCount = safeSelected.length > maxCount ? maxCount : safeSelected.length
+  const remainingCount = safeSelected.length - displayCount
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,15 +73,15 @@ export function MultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn(
+            className={cn(
             "w-full justify-between min-h-11 h-auto py-2",
-            !selected.length && "text-muted-foreground",
+            !safeSelected.length && "text-muted-foreground",
             className
           )}
           disabled={disabled}
         >
           <div className="flex flex-wrap gap-1 flex-1">
-            {selected.length === 0 ? (
+            {safeSelected.length === 0 ? (
               <span className="text-muted-foreground">{placeholder}</span>
             ) : (
               <>
@@ -138,7 +143,7 @@ export function MultiSelect({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selected.includes(option.value)
+                      safeSelected.includes(option.value)
                         ? "opacity-100"
                         : "opacity-0"
                     )}

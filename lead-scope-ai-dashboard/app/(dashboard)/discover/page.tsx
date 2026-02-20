@@ -135,7 +135,8 @@ export default function DiscoverPage() {
           
           // Automatically select all municipalities from selected prefectures
           const municipalityIds = allMunicipalities.map(m => m.id)
-          setSelectedMunicipalities(municipalityIds)
+          // Ensure it's always an array
+          setSelectedMunicipalities(Array.isArray(municipalityIds) ? municipalityIds : [])
         } catch (error) {
           console.error('Error loading municipalities:', error)
           toast({
@@ -398,8 +399,8 @@ export default function DiscoverPage() {
                   label: pref.descr_en || pref.descr,
                   value: pref.id,
                 }))}
-                selected={selectedPrefectures}
-                onChange={setSelectedPrefectures}
+                selected={Array.isArray(selectedPrefectures) ? selectedPrefectures : []}
+                onChange={(value) => setSelectedPrefectures(Array.isArray(value) ? value : [])}
                 placeholder="Select one or more regions"
                 className="h-11"
               />
@@ -420,8 +421,8 @@ export default function DiscoverPage() {
                   label: mun.descr_en || mun.descr,
                   value: mun.id,
                 }))}
-                selected={selectedMunicipalities}
-                onChange={setSelectedMunicipalities}
+                selected={Array.isArray(selectedMunicipalities) ? selectedMunicipalities : []}
+                onChange={(value) => setSelectedMunicipalities(Array.isArray(value) ? value : [])}
                 placeholder={
                   selectedPrefectures.length > 0
                     ? "All municipalities from selected prefectures (you can deselect specific ones)"
@@ -450,8 +451,8 @@ export default function DiscoverPage() {
                   label: group.name,
                   value: group.id,
                 }))}
-                selected={selectedIndustryGroups}
-                onChange={setSelectedIndustryGroups}
+                selected={Array.isArray(selectedIndustryGroups) ? selectedIndustryGroups : []}
+                onChange={(value) => setSelectedIndustryGroups(Array.isArray(value) ? value : [])}
                 placeholder="Select one or more industry groups"
                 className="h-11"
               />

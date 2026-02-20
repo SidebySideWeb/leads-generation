@@ -595,6 +595,8 @@ class ApiClient {
     municipality_id?: string; // Legacy support
     industry_id?: string; // Legacy support
     industry_group_id?: string; // New: industry group ID
+    prefecture_gemi_id?: number; // Prefecture GEMI ID (for prefecture-level discovery)
+    prefecture_id?: string; // Prefecture internal ID (for prefecture-level discovery)
     city_id?: string; // Legacy support
     dataset_id?: string;
   }): Promise<{ data: Array<{ id: string; dataset_id?: string; status: string; created_at: string }> | null; meta: ResponseMeta }> {

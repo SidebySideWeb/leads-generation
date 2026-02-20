@@ -175,31 +175,31 @@ export function ExportModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-              <Download className="w-5 h-5 text-primary" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex-shrink-0">
+              <Download className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
             </div>
-            <div>
-              <DialogTitle className="text-xl">Create Export</DialogTitle>
-              <DialogDescription className="text-sm">
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-lg sm:text-xl">Create Export</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
                 Export your dataset in your preferred format
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 sm:space-y-6 py-2 sm:py-4">
           {/* Dataset Selector */}
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             <Label htmlFor="dataset-select" className="text-sm font-medium text-foreground">
               Select Dataset
             </Label>
             {loadingDatasets ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 rounded-lg border border-border bg-muted/30">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading datasets...
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground p-3 rounded-lg border border-border bg-muted/30">
+                <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                <span>Loading datasets...</span>
               </div>
             ) : datasets.length > 0 ? (
               <Select
@@ -207,20 +207,20 @@ export function ExportModal({
                 onValueChange={setSelectedDatasetId}
                 disabled={loading || loadingDatasets}
               >
-                <SelectTrigger id="dataset-select" className="h-12">
+                <SelectTrigger id="dataset-select" className="h-auto min-h-[3rem] sm:h-12">
                   <SelectValue placeholder="Select a dataset">
                     {selectedDataset ? (
-                      <div className="flex items-center gap-3 w-full">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10">
-                          <Database className="w-4 h-4 text-primary" />
+                      <div className="flex items-center gap-2 sm:gap-3 w-full pr-2">
+                        <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-md bg-primary/10 flex-shrink-0">
+                          <Database className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
                         </div>
-                        <div className="flex-1 text-left">
-                          <div className="font-medium text-foreground">{selectedDataset.name}</div>
-                          <div className="text-xs text-muted-foreground">
+                        <div className="flex-1 min-w-0 text-left">
+                          <div className="font-medium text-foreground text-sm sm:text-base truncate">{selectedDataset.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
                             {selectedDataset.city} • {selectedDataset.industry}
                           </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0 hidden sm:block">
                           {selectedDataset.businesses.toLocaleString()} businesses
                         </div>
                       </div>
@@ -229,21 +229,21 @@ export function ExportModal({
                     )}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[60vh] sm:max-h-[50vh]">
                   {datasets.map((ds) => (
-                    <SelectItem key={ds.id} value={ds.id} className="py-3">
-                      <div className="flex items-center gap-3 w-full">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10">
-                          <Database className="w-4 h-4 text-primary" />
+                    <SelectItem key={ds.id} value={ds.id} className="py-2 sm:py-3">
+                      <div className="flex items-center gap-2 sm:gap-3 w-full">
+                        <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-md bg-primary/10 flex-shrink-0">
+                          <Database className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-foreground truncate">{ds.name}</div>
+                          <div className="font-medium text-foreground text-sm sm:text-base truncate">{ds.name}</div>
                           <div className="text-xs text-muted-foreground truncate">
                             {ds.city} • {ds.industry}
                           </div>
                         </div>
-                        <div className="text-xs text-muted-foreground whitespace-nowrap">
-                          {ds.businesses.toLocaleString()} businesses
+                        <div className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                          {ds.businesses.toLocaleString()}
                         </div>
                       </div>
                     </SelectItem>
@@ -262,7 +262,7 @@ export function ExportModal({
 
           {/* Format Selector */}
           {selectedDataset && (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <Label htmlFor="format-select" className="text-sm font-medium text-foreground">
                 Export Format
               </Label>
@@ -271,24 +271,24 @@ export function ExportModal({
                 onValueChange={(value) => setFormat(value as 'csv' | 'xlsx')}
                 disabled={loading || loadingDatasets}
               >
-                <SelectTrigger id="format-select" className="h-12">
+                <SelectTrigger id="format-select" className="h-auto min-h-[3rem] sm:h-12">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="xlsx" className="py-3">
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4 text-primary" />
-                      <div>
-                        <div className="font-medium">Excel (.xlsx)</div>
+                  <SelectItem value="xlsx" className="py-2 sm:py-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <FileSpreadsheet className="w-4 h-4 text-primary flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm sm:text-base">Excel (.xlsx)</div>
                         <div className="text-xs text-muted-foreground">Recommended for large datasets</div>
                       </div>
                     </div>
                   </SelectItem>
-                  <SelectItem value="csv" className="py-3">
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4 text-primary" />
-                      <div>
-                        <div className="font-medium">CSV (.csv)</div>
+                  <SelectItem value="csv" className="py-2 sm:py-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <FileSpreadsheet className="w-4 h-4 text-primary flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm sm:text-base">CSV (.csv)</div>
                         <div className="text-xs text-muted-foreground">Compatible with all spreadsheet apps</div>
                       </div>
                     </div>
@@ -300,23 +300,23 @@ export function ExportModal({
 
           {/* Dataset Summary */}
           {selectedDataset && (
-            <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Dataset</span>
-                <span className="font-medium text-foreground">{selectedDataset.name}</span>
+            <div className="p-3 sm:p-4 rounded-lg border border-border bg-muted/30 space-y-2 sm:space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs sm:text-sm text-muted-foreground">Dataset</span>
+                <span className="font-medium text-foreground text-xs sm:text-sm truncate ml-2 text-right">{selectedDataset.name}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Location</span>
-                <span className="font-medium text-foreground">{selectedDataset.city}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs sm:text-sm text-muted-foreground">Location</span>
+                <span className="font-medium text-foreground text-xs sm:text-sm truncate ml-2 text-right">{selectedDataset.city}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Industry</span>
-                <span className="font-medium text-foreground">{selectedDataset.industry}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs sm:text-sm text-muted-foreground">Industry</span>
+                <span className="font-medium text-foreground text-xs sm:text-sm truncate ml-2 text-right">{selectedDataset.industry}</span>
               </div>
               <div className="pt-2 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Total Businesses</span>
-                  <span className="text-lg font-bold text-primary">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs sm:text-sm text-muted-foreground">Total Businesses</span>
+                  <span className="text-base sm:text-lg font-bold text-primary">
                     {datasetSize.toLocaleString()}
                   </span>
                 </div>
@@ -327,8 +327,8 @@ export function ExportModal({
           {/* Info Alert */}
           {selectedDataset && (
             <Alert className="bg-primary/5 border-primary/20">
-              <Info className="h-4 w-4 text-primary" />
-              <AlertDescription className="text-sm text-muted-foreground">
+              <Info className="h-4 w-4 text-primary flex-shrink-0" />
+              <AlertDescription className="text-xs sm:text-sm text-muted-foreground">
                 The export will be processed in the background. You'll receive a notification when it's ready to download.
               </AlertDescription>
             </Alert>
@@ -336,24 +336,31 @@ export function ExportModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="outline" onClick={handleClose} disabled={loading}>
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border">
+          <Button 
+            variant="outline" 
+            onClick={handleClose} 
+            disabled={loading}
+            className="w-full sm:w-auto"
+          >
             Cancel
           </Button>
           <Button
             onClick={handleExport}
             disabled={!selectedDatasetId || !isValid || loading || loadingDatasets}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating Export...
+                <span className="hidden sm:inline">Creating Export...</span>
+                <span className="sm:hidden">Creating...</span>
               </>
             ) : (
               <>
                 <Download className="w-4 h-4 mr-2" />
-                Create Export
+                <span className="hidden sm:inline">Create Export</span>
+                <span className="sm:hidden">Export</span>
               </>
             )}
           </Button>

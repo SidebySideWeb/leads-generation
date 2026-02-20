@@ -127,7 +127,7 @@ class ApiClient {
           meta: {
             plan_id: 'demo',
             gated: true,
-            gate_reason: 'GEMI Registry is processing requests. Please wait...',
+            gate_reason: 'The registry is processing requests. Please wait...',
             total_available: 0,
             total_returned: 0,
           },

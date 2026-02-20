@@ -119,11 +119,24 @@ export function ExportModal({
       const response = await api.runExport(selectedDatasetId, format)
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || errorData.message || 'Failed to create export')
+        let errorMessage = 'Failed to create export'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorData.gate_reason || errorMessage
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || errorMessage
+        }
+        throw new Error(errorMessage)
       }
 
-      const result = await response.json()
+      let result: any = {}
+      try {
+        result = await response.json()
+      } catch (e) {
+        // If response is not JSON, that's okay - export was created
+        console.log('Export response is not JSON, assuming success')
+      }
       
       toast({
         title: "Export started",
@@ -135,6 +148,7 @@ export function ExportModal({
         onComplete()
       }
     } catch (error) {
+      console.error('Export error:', error)
       if (error instanceof NetworkError) {
         toast({
           title: "Network error",

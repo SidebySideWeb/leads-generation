@@ -103,7 +103,9 @@ export default function DatasetDetailPage() {
         setBusinessesMeta(resultsRes.meta)
         
         if (discoveryRunsRes.data) {
-          setDiscoveryRuns(discoveryRunsRes.data)
+          // Ensure discoveryRuns is always an array
+          const runs = Array.isArray(discoveryRunsRes.data) ? discoveryRunsRes.data : []
+          setDiscoveryRuns(runs)
         }
       } catch (error) {
         if (error instanceof NetworkError) {

@@ -34,7 +34,9 @@ export function ExportButton({ datasetId, dataset: datasetProp, onExportComplete
   
   // Check if latest discovery run is completed
   // Export is disabled if latest discovery_run.status !== 'completed'
-  const latestDiscoveryRun = discoveryRuns.length > 0 ? discoveryRuns[0] : null
+  // Ensure discoveryRuns is always an array
+  const safeDiscoveryRuns = Array.isArray(discoveryRuns) ? discoveryRuns : []
+  const latestDiscoveryRun = safeDiscoveryRuns.length > 0 ? safeDiscoveryRuns[0] : null
   const isDiscoveryCompleted = latestDiscoveryRun?.status === 'completed'
   const isDiscoveryRunning = latestDiscoveryRun?.status === 'running'
   const exportDisabled = loading || !isDiscoveryCompleted || (latestDiscoveryRun && isDiscoveryRunning)

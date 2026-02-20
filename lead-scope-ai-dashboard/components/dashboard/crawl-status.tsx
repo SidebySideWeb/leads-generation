@@ -84,10 +84,12 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
       // Load discovery runs (orchestration layer)
       const discoveryResponse = await api.getDiscoveryRuns(datasetId)
       if (discoveryResponse.data) {
-        setDiscoveryRuns(discoveryResponse.data)
+        // Ensure it's always an array
+        const runs = Array.isArray(discoveryResponse.data) ? discoveryResponse.data : []
+        setDiscoveryRuns(runs)
         
         // Load extraction jobs for the latest running discovery run
-        const runningRun = discoveryResponse.data.find(run => run.status === 'running')
+        const runningRun = runs.find(run => run.status === 'running')
         if (runningRun) {
           try {
             const extractionResponse = await api.getExtractionJobs({ discoveryRunId: runningRun.id })
@@ -113,7 +115,9 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
       // Also load crawl jobs for backward compatibility
       const response = await api.getCrawlStatus(datasetId)
       if (response.data) {
-        setCrawlJobs(response.data)
+        // Ensure it's always an array
+        const jobs = Array.isArray(response.data) ? response.data : []
+        setCrawlJobs(jobs)
       }
       setMeta(response.meta)
     } catch (err) {
@@ -156,7 +160,10 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
           created_at: new Date().toISOString(),
           completed_at: null,
         }
-        setDiscoveryRuns(prev => [optimisticRun, ...prev])
+        setDiscoveryRuns(prev => {
+          const safePrev = Array.isArray(prev) ? prev : []
+          return [optimisticRun, ...safePrev]
+        })
       }
 
       toast({
@@ -195,7 +202,9 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
 
   // Poll for updates if there's a running discovery run (every 3-5 seconds)
   useEffect(() => {
-    const hasRunningDiscovery = discoveryRuns.some(run => run.status === 'running')
+    // Ensure discoveryRuns is always an array
+    const safeDiscoveryRuns = Array.isArray(discoveryRuns) ? discoveryRuns : []
+    const hasRunningDiscovery = safeDiscoveryRuns.some(run => run.status === 'running')
     
     if (!hasRunningDiscovery) {
       return // No polling needed
@@ -210,8 +219,13 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
     }
   }, [discoveryRuns, loadCrawlStatus])
 
-  const latestJob = crawlJobs.length > 0 ? crawlJobs[0] : null
-  const hasRunningJob = crawlJobs.some(job => job.status === 'running' || job.status === 'queued')
+  // Ensure arrays are always arrays
+  const safeDiscoveryRuns = Array.isArray(discoveryRuns) ? discoveryRuns : []
+  const safeCrawlJobs = Array.isArray(crawlJobs) ? crawlJobs : []
+  const safeExtractionJobs = Array.isArray(extractionJobs) ? extractionJobs : []
+  
+  const latestJob = safeCrawlJobs.length > 0 ? safeCrawlJobs[0] : null
+  const hasRunningJob = safeCrawlJobs.some(job => job.status === 'running' || job.status === 'queued')
   const pagesAllowed = latestJob?.pages_limit || (meta.gated ? 3 : 25)
 
   return (
@@ -284,17 +298,17 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
         {meta.gated && <GateBanner meta={meta} />}
 
         {/* Discovery Runs Section */}
-        {discoveryRuns.length > 0 && (
+        {safeDiscoveryRuns.length > 0 && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-foreground">Discovery Runs</h4>
-            {discoveryRuns.map((run) => {
+            {safeDiscoveryRuns.map((run) => {
               const StatusIcon = statusConfig[run.status === 'running' ? 'running' : run.status === 'completed' ? 'completed' : 'failed'].icon
               const isRunning = run.status === 'running'
-              const runExtractionJobs = extractionJobs.filter(job => {
+              const runExtractionJobs = safeExtractionJobs.filter(job => {
                 // Filter extraction jobs for this discovery run
                 // We need to check if the job's business belongs to this discovery run
                 // For now, show all extraction jobs if this is the latest run
-                return discoveryRuns[0]?.id === run.id
+                return safeDiscoveryRuns[0]?.id === run.id
               })
               const pendingJobs = runExtractionJobs.filter(j => j.status === 'pending' || j.status === 'running').length
               const completedJobs = runExtractionJobs.filter(j => j.status === 'success').length
@@ -343,23 +357,23 @@ export function CrawlStatus({ datasetId }: CrawlStatusProps) {
           </div>
         )}
 
-        {loading && crawlJobs.length === 0 && discoveryRuns.length === 0 ? (
+        {loading && safeCrawlJobs.length === 0 && safeDiscoveryRuns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
             <p>Loading status...</p>
           </div>
-        ) : crawlJobs.length === 0 && discoveryRuns.length === 0 ? (
+        ) : safeCrawlJobs.length === 0 && safeDiscoveryRuns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No discovery runs or crawl jobs yet</p>
             <p className="text-xs mt-1">Start a discovery or crawl to see status</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {discoveryRuns.length > 0 && (
+            {safeDiscoveryRuns.length > 0 && (
               <h4 className="text-sm font-medium text-foreground">Crawl Jobs</h4>
             )}
             {/* Always show all jobs, even if partial/incomplete - never hide partial results */}
-            {crawlJobs.map((job) => {
+            {safeCrawlJobs.map((job) => {
               const StatusIcon = statusConfig[job.status].icon
               const isRunning = job.status === 'running' || job.status === 'queued'
               const progress = job.pages_limit > 0 

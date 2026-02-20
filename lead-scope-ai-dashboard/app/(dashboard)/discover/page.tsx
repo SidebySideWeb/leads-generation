@@ -196,7 +196,7 @@ export default function DiscoverPage() {
     return () => clearInterval(interval)
   }
 
-  // Handle Search - First search local database, then GEMI if no results
+  // Handle Search - First search local database, then discovery if no results
   const handleSearch = async () => {
     // Require at least prefecture OR municipality, and at least one industry group
     if ((selectedPrefectures.length === 0 && selectedMunicipalities.length === 0) || selectedIndustryGroups.length === 0) {
@@ -245,12 +245,12 @@ export default function DiscoverPage() {
         return
       }
 
-      // Step 2: No local results - trigger GEMI discovery for each combination
+      // Step 2: No local results - trigger discovery for each combination
       // For now, we'll trigger discovery for the first municipality/prefecture and industry combination
       // In the future, we could trigger multiple discoveries in parallel
       toast({
         title: "No local results",
-        description: "Searching GEMI Registry for fresh data...",
+        description: "Searching for fresh data...",
         duration: 3000,
       })
 
@@ -262,7 +262,7 @@ export default function DiscoverPage() {
         throw new Error('Selected industry group not found')
       }
       
-      // GEMI discovery requires a municipality, not just a prefecture
+      // Discovery requires a municipality, not just a prefecture
       // If only prefectures are selected, we need to get a municipality from that prefecture
       let municipalityId: string | null = null
       let selectedMunicipalityObj: Municipality | null = null
@@ -283,7 +283,7 @@ export default function DiscoverPage() {
       
       // Validate that we have a municipality
       if (!municipalityId || !selectedMunicipalityObj) {
-        throw new Error('GEMI discovery requires a municipality. Please select at least one municipality or ensure municipalities are available for the selected prefecture.')
+        throw new Error('Discovery requires a municipality. Please select at least one municipality or ensure municipalities are available for the selected prefecture.')
       }
       
       // Get gemi_id values from selected municipality
@@ -311,7 +311,7 @@ export default function DiscoverPage() {
 
         toast({
           title: "Discovery started",
-          description: "Fetching businesses from GEMI Registry. This may take a few minutes.",
+          description: "Fetching businesses from the registry. This may take a few minutes.",
           duration: 10000,
         })
       } else {
@@ -322,14 +322,13 @@ export default function DiscoverPage() {
       const isRateLimit = 
         error.response?.status === 429 || 
         error.message?.includes('rate limit') || 
-        error.message?.includes('GEMI') ||
         error.message?.includes('processing') ||
-        (error.meta?.gate_reason?.includes('GEMI') || error.meta?.gate_reason?.includes('processing'))
+        (error.meta?.gate_reason?.includes('processing'))
       
       if (isRateLimit) {
         toast({
           title: "Rate limit reached",
-          description: error.message || "GEMI Registry is processing requests. Please wait...",
+          description: error.message || "The registry is processing requests. Please wait...",
           variant: "destructive",
           duration: 10000,
         })
@@ -459,7 +458,7 @@ export default function DiscoverPage() {
             <Info className="h-4 w-4 text-primary" />
             <AlertTitle className="text-foreground">Smart Search</AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              Search first checks your local database. If no results are found, it automatically fetches fresh data from the official GEMI Registry.
+              Search first checks your local database. If no results are found, it automatically fetches fresh data from the official registry.
             </AlertDescription>
           </Alert>
 
@@ -486,7 +485,7 @@ export default function DiscoverPage() {
               ) : polling ? (
                 <>
                   <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                  Fetching from GEMI...
+                  Fetching from registry...
                 </>
               ) : (
                 <>
@@ -502,7 +501,7 @@ export default function DiscoverPage() {
             <Alert>
               <Loader2 className="h-4 w-4 animate-spin" />
               <AlertDescription>
-                Fetching businesses from GEMI Registry. This may take a few minutes due to rate limits (8 requests/minute).
+                Fetching businesses from the registry. This may take a few minutes due to rate limits (8 requests/minute).
               </AlertDescription>
             </Alert>
           )}
@@ -510,7 +509,7 @@ export default function DiscoverPage() {
           <Alert className="bg-success/5 border-success/20">
             <Info className="h-4 w-4 text-success" />
             <AlertDescription className="text-sm text-muted-foreground">
-              Search is free. GEMI discovery fetches fresh data from the official registry. You only pay when you export data.
+              Search is free. Discovery fetches fresh data from the official registry. You only pay when you export data.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -593,11 +592,11 @@ export default function DiscoverPage() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              If no local results are found, it fetches fresh data from GEMI Registry
+              If no local results are found, it fetches fresh data from the official registry
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary mt-1">•</span>
-              GEMI discovery may take a few minutes due to API rate limits
+              Discovery may take a few minutes due to API rate limits
             </li>
           </ul>
         </CardContent>

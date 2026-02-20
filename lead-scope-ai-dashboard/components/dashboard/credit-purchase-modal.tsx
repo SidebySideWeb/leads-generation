@@ -24,24 +24,57 @@ interface CreditPurchaseModalProps {
 
 const CREDIT_PACKAGES = [
   {
-    id: '500',
-    credits: 500,
-    price: '€9.99',
+    id: 'bronze',
+    credits: 50,
+    price: '€50',
     popular: false,
+    bonus: '0%',
+    name: 'Bronze',
   },
   {
-    id: '1000',
-    credits: 1000,
-    price: '€17.99',
+    id: 'silver',
+    credits: 120,
+    price: '€100',
     popular: true,
-    savings: 'Save 10%',
+    bonus: '20%',
+    name: 'Silver',
+    savings: '20% bonus',
   },
   {
-    id: '5000',
-    credits: 5000,
-    price: '€79.99',
+    id: 'gold',
+    credits: 260,
+    price: '€200',
     popular: false,
-    savings: 'Save 20%',
+    bonus: '30%',
+    name: 'Gold',
+    savings: '30% bonus',
+  },
+  // Legacy numeric keys for backward compatibility
+  {
+    id: '50',
+    credits: 50,
+    price: '€50',
+    popular: false,
+    bonus: '0%',
+    name: 'Bronze',
+  },
+  {
+    id: '120',
+    credits: 120,
+    price: '€100',
+    popular: true,
+    bonus: '20%',
+    name: 'Silver',
+    savings: '20% bonus',
+  },
+  {
+    id: '260',
+    credits: 260,
+    price: '€200',
+    popular: false,
+    bonus: '30%',
+    name: 'Gold',
+    savings: '30% bonus',
   },
 ]
 
@@ -103,14 +136,17 @@ export function CreditPurchaseModal({ open, onOpenChange }: CreditPurchaseModalP
                 </div>
               )}
               <CardHeader>
-                <CardTitle className="text-2xl">{pkg.credits.toLocaleString()}</CardTitle>
-                <CardDescription>Credits</CardDescription>
+                <CardTitle className="text-2xl">{pkg.name || `${pkg.credits.toLocaleString()} Credits`}</CardTitle>
+                <CardDescription>{pkg.credits.toLocaleString()} Credits</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <div className="text-2xl font-bold">{pkg.price}</div>
                   {pkg.savings && (
-                    <div className="text-xs text-muted-foreground">{pkg.savings}</div>
+                    <div className="text-xs text-primary font-medium">{pkg.savings}</div>
+                  )}
+                  {pkg.bonus && pkg.bonus !== '0%' && (
+                    <div className="text-xs text-muted-foreground">Get {pkg.bonus} extra credits</div>
                   )}
                   <Button
                     className="w-full"

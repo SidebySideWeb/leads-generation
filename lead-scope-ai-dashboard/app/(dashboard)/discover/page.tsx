@@ -118,12 +118,12 @@ export default function DiscoverPage() {
     loadData()
   }, [])
 
-  // Load municipalities when prefectures change
+  // Load municipalities when prefectures change (but don't auto-select them)
   useEffect(() => {
     if (selectedPrefectures.length > 0) {
       async function loadMunicipalities() {
         try {
-          // Load municipalities for all selected prefectures
+          // Load municipalities for all selected prefectures (for display only)
           const allMunicipalities: Municipality[] = []
           for (const prefectureId of selectedPrefectures) {
             const res = await api.getMunicipalities(prefectureId)
@@ -132,11 +132,7 @@ export default function DiscoverPage() {
             }
           }
           setMunicipalities(allMunicipalities)
-          
-          // Automatically select all municipalities from selected prefectures
-          const municipalityIds = allMunicipalities.map(m => m.id)
-          // Ensure it's always an array
-          setSelectedMunicipalities(Array.isArray(municipalityIds) ? municipalityIds : [])
+          // Don't auto-select municipalities - let user choose manually
         } catch (error) {
           console.error('Error loading municipalities:', error)
           toast({
@@ -149,7 +145,10 @@ export default function DiscoverPage() {
       loadMunicipalities()
     } else {
       setMunicipalities([])
-      setSelectedMunicipalities([])
+      // Only clear municipalities if prefectures are cleared
+      if (selectedPrefectures.length === 0) {
+        setSelectedMunicipalities([])
+      }
     }
   }, [selectedPrefectures, toast])
 
@@ -407,11 +406,11 @@ export default function DiscoverPage() {
             )}
           </div>
 
-          {/* Town (Municipality) Selection - Multi-select, Auto-selected from prefectures */}
+          {/* Town (Municipality) Selection - Multi-select, Optional */}
           <div className="space-y-2">
             <Label htmlFor="municipality" className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              Town (Municipality) <span className="text-xs text-muted-foreground">(Auto-selected from prefectures)</span>
+              Town (Municipality) <span className="text-xs text-muted-foreground">(Optional - leave empty to search entire prefecture)</span>
             </Label>
             {loadingData ? (
               <Skeleton className="h-11 w-full" />
@@ -425,7 +424,7 @@ export default function DiscoverPage() {
                 onChange={(value) => setSelectedMunicipalities(Array.isArray(value) ? value : [])}
                 placeholder={
                   selectedPrefectures.length > 0
-                    ? "All municipalities from selected prefectures (you can deselect specific ones)"
+                    ? "Select specific municipalities (optional - leave empty for entire prefecture)"
                     : "Select regions first to see municipalities"
                 }
                 disabled={selectedPrefectures.length === 0}
@@ -433,7 +432,7 @@ export default function DiscoverPage() {
               />
             )}
             <p className="text-xs text-muted-foreground">
-              When you select a prefecture, all municipalities in that prefecture are automatically selected. You can deselect specific municipalities if needed.
+              Select specific municipalities to narrow your search, or leave empty to search the entire prefecture.
             </p>
           </div>
 

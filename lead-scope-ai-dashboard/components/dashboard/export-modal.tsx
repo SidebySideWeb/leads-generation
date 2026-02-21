@@ -51,6 +51,8 @@ export function ExportModal({
 }: ExportModalProps) {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>(initialDataset?.id || '')
   const [format, setFormat] = useState<'csv' | 'xlsx'>('xlsx')
+  const [startRow, setStartRow] = useState<string>('1')
+  const [endRow, setEndRow] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [loadingDatasets, setLoadingDatasets] = useState(false)
   const [datasets, setDatasets] = useState<Dataset[]>(availableDatasets)
@@ -99,9 +101,39 @@ export function ExportModal({
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId)
   const datasetSize = selectedDataset?.businesses || 0
 
+  // Update endRow when dataset changes
+  useEffect(() => {
+    if (selectedDataset && datasetSize > 0) {
+      if (!endRow || parseInt(endRow) > datasetSize) {
+        setEndRow(datasetSize.toString())
+      }
+      if (parseInt(startRow) > datasetSize) {
+        setStartRow('1')
+      }
+    }
+  }, [selectedDataset, datasetSize, endRow, startRow])
+
+  // Calculate selected row count and cost
+  const selectedRowCount = useMemo(() => {
+    const start = parseInt(startRow) || 1
+    const end = parseInt(endRow) || datasetSize
+    if (start < 1 || end < start || end > datasetSize) {
+      return 0
+    }
+    return end - start + 1
+  }, [startRow, endRow, datasetSize])
+
+  const exportCost = useMemo(() => {
+    // 0.05 euros per row (1 credit = 1 euro)
+    return (selectedRowCount * 0.05).toFixed(2)
+  }, [selectedRowCount])
+
   const isValid = useMemo(() => {
-    return !!selectedDatasetId && !!selectedDataset
-  }, [selectedDatasetId, selectedDataset])
+    if (!selectedDatasetId || !selectedDataset) return false
+    const start = parseInt(startRow) || 0
+    const end = parseInt(endRow) || 0
+    return start >= 1 && end >= start && end <= datasetSize && selectedRowCount > 0
+  }, [selectedDatasetId, selectedDataset, startRow, endRow, datasetSize, selectedRowCount])
 
   const handleExport = async () => {
     if (!selectedDatasetId) {
@@ -115,8 +147,11 @@ export function ExportModal({
 
     setLoading(true)
     try {
+      const start = parseInt(startRow) || 1
+      const end = parseInt(endRow) || datasetSize
+      
       // Use the runExport endpoint which creates an async export job
-      const response = await api.runExport(selectedDatasetId, format)
+      const response = await api.runExport(selectedDatasetId, format, start, end)
       
       if (!response.ok) {
         let errorMessage = 'Failed to create export'
@@ -259,6 +294,68 @@ export function ExportModal({
               </Alert>
             )}
           </div>
+
+          {/* Row Range Selector */}
+          {selectedDataset && datasetSize > 0 && (
+            <div className="space-y-2 sm:space-y-3">
+              <Label htmlFor="row-range" className="text-sm font-medium text-foreground">
+                Row Range (Alphabetical Order)
+              </Label>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="start-row" className="text-xs text-muted-foreground">
+                    Start Row
+                  </Label>
+                  <Input
+                    id="start-row"
+                    type="number"
+                    min={1}
+                    max={datasetSize}
+                    value={startRow}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === '' || (parseInt(val) >= 1 && parseInt(val) <= datasetSize)) {
+                        setStartRow(val)
+                      }
+                    }}
+                    placeholder="1"
+                    className="h-9 sm:h-10"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="end-row" className="text-xs text-muted-foreground">
+                    End Row
+                  </Label>
+                  <Input
+                    id="end-row"
+                    type="number"
+                    min={parseInt(startRow) || 1}
+                    max={datasetSize}
+                    value={endRow}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === '' || (parseInt(val) >= parseInt(startRow) && parseInt(val) <= datasetSize)) {
+                        setEndRow(val)
+                      }
+                    }}
+                    placeholder={datasetSize.toString()}
+                    className="h-9 sm:h-10"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-muted-foreground">
+                  Selected: {selectedRowCount.toLocaleString()} rows
+                </span>
+                <span className="font-medium text-foreground">
+                  Cost: €{exportCost} ({selectedRowCount} credits)
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rows are ordered alphabetically by business name. Select the range you want to export.
+              </p>
+            </div>
+          )}
 
           {/* Format Selector */}
           {selectedDataset && (

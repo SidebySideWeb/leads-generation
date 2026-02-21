@@ -422,24 +422,27 @@ class ApiClient {
   async runExport(
     datasetId: string,
     format: 'csv' | 'xlsx' = 'csv',
-    options?: {
-      size?: number;
-      refresh?: 'none' | 'incomplete' | 'full';
-    }
+    startRow?: number,
+    endRow?: number
   ): Promise<Response> {
     // Call backend directly (backend route is /exports/run)
     const url = `${this._baseUrl}/exports/run`;
+    const body: any = { 
+      datasetId, 
+      format,
+    };
+    
+    if (startRow !== undefined && endRow !== undefined) {
+      body.start_row = startRow;
+      body.end_row = endRow;
+    }
+    
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        datasetId, 
-        format,
-        ...(options?.size && { size: options.size }),
-        ...(options?.refresh && { refresh: options.refresh }),
-      }),
+      body: JSON.stringify(body),
       credentials: 'include', // Always send cookies for auth
     });
     

@@ -100,7 +100,8 @@ export function ExportModal({
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId)
   // Use contacts count (businesses with email or phone) instead of total businesses
-  const datasetSize = selectedDataset?.contacts || 0
+  // Fallback to 0 if contacts is undefined, null, or 0
+  const datasetSize = selectedDataset?.contacts ?? 0
 
   // Update endRow when dataset changes
   useEffect(() => {
@@ -135,6 +136,13 @@ export function ExportModal({
     const end = parseInt(endRow) || 0
     return start >= 1 && end >= start && end <= datasetSize && selectedRowCount > 0
   }, [selectedDatasetId, selectedDataset, startRow, endRow, datasetSize, selectedRowCount])
+
+  // Check if range exceeds contacts count
+  const rangeExceedsContacts = useMemo(() => {
+    if (!selectedDataset || !endRow) return false
+    const end = parseInt(endRow) || 0
+    return end > datasetSize
+  }, [selectedDataset, endRow, datasetSize])
 
   const handleExport = async () => {
     if (!selectedDatasetId) {
@@ -311,11 +319,10 @@ export function ExportModal({
                     id="start-row"
                     type="number"
                     min={1}
-                    max={datasetSize}
                     value={startRow}
                     onChange={(e) => {
                       const val = e.target.value
-                      if (val === '' || (parseInt(val) >= 1 && parseInt(val) <= datasetSize)) {
+                      if (val === '' || (parseInt(val) >= 1)) {
                         setStartRow(val)
                       }
                     }}
@@ -331,19 +338,26 @@ export function ExportModal({
                     id="end-row"
                     type="number"
                     min={parseInt(startRow) || 1}
-                    max={datasetSize}
                     value={endRow}
                     onChange={(e) => {
                       const val = e.target.value
-                      if (val === '' || (parseInt(val) >= parseInt(startRow) && parseInt(val) <= datasetSize)) {
+                      if (val === '' || (parseInt(val) >= parseInt(startRow) || 0)) {
                         setEndRow(val)
                       }
                     }}
                     placeholder={datasetSize.toString()}
-                    className="h-9 sm:h-10"
+                    className={cn("h-9 sm:h-10", rangeExceedsContacts && "border-destructive focus-visible:ring-destructive")}
                   />
                 </div>
               </div>
+              {rangeExceedsContacts && (
+                <Alert className="bg-destructive/10 border-destructive/20">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <AlertDescription className="text-xs sm:text-sm text-destructive">
+                    Maximum range is {datasetSize.toLocaleString()} contacts. Please enter a value ≤ {datasetSize.toLocaleString()}.
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-muted-foreground">
                   Selected: {selectedRowCount.toLocaleString()} rows

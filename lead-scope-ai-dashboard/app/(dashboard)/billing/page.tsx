@@ -140,6 +140,14 @@ function BillingPageInner() {
   const [loadingData, setLoadingData] = useState(true)
   const [businessesExported, setBusinessesExported] = useState<number>(0)
   const [showCreditModal, setShowCreditModal] = useState(false)
+  const [creditPackages, setCreditPackages] = useState<Array<{
+    id: string;
+    productId: string;
+    name: string;
+    priceEUR: number;
+    credits: number;
+    bonus: string;
+  }>>([])
   const [allExports, setAllExports] = useState<ExportResult[]>([])
   const [allDiscoveries, setAllDiscoveries] = useState<Array<{
     id: string;
@@ -188,13 +196,14 @@ function BillingPageInner() {
   const loadData = async () => {
     try {
       setLoadingData(true)
-      const [userRes, subscriptionRes, usageRes, invoicesRes, exportsRes, discoveriesRes] = await Promise.all([
+      const [userRes, subscriptionRes, usageRes, invoicesRes, exportsRes, discoveriesRes, creditPackagesRes] = await Promise.all([
         api.getCurrentUser(),
         api.getSubscription(),
         api.getUsage(),
         api.getInvoices(),
         api.getExports().catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } })),
         api.getAllDiscoveryRuns().catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } })),
+        api.getCreditPackages().catch(() => ({ data: null, meta: { plan_id: 'demo' as const, gated: false, total_available: 0, total_returned: 0 } })),
       ])
 
       if (userRes.data) {
@@ -228,6 +237,11 @@ function BillingPageInner() {
       // Load all discoveries
       if (discoveriesRes.data) {
         setAllDiscoveries(discoveriesRes.data)
+      }
+
+      // Load credit packages
+      if (creditPackagesRes.data?.packages) {
+        setCreditPackages(creditPackagesRes.data.packages)
       }
     } catch (error) {
       console.error('Failed to load billing data:', error)
@@ -491,84 +505,85 @@ function BillingPageInner() {
         )}
       </Card>
 
-      {/* Pricing Plans */}
+      {/* Credit Packages */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Διαθέσιμα Πακέτα</h2>
+        <h2 className="text-lg font-semibold text-foreground">Διαθέσιμα Πακέτα Credits</h2>
         <div className="grid md:grid-cols-3 gap-6">
-          {plans.map((plan) => {
-            const isCurrent = userPlanId === plan.id
-            return (
-              <Card
-                key={plan.id}
-                className={cn(
-                  "bg-card relative",
-                  isCurrent ? "border-primary border-2" : "border-border"
-                )}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                    Προτεινόμενο
-                  </div>
-                )}
-                {isCurrent && (
-                  <div className="absolute -top-3 right-4 px-3 py-1 bg-success text-success-foreground text-xs font-medium rounded-full">
-                    Τρέχον
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle className="text-card-foreground">{plan.name}</CardTitle>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-card-foreground">{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.period}</span>
-                  </div>
-                  <CardDescription>{plan.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3">
-                    {plan.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <CheckCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {plan.footnote && (
-                    <p className="text-xs text-muted-foreground mt-4 italic">
-                      {plan.footnote}
-                    </p>
+          {creditPackages.length > 0 ? (
+            creditPackages.map((pkg) => {
+              const hasBonus = pkg.bonus !== '0%'
+              const isPopular = creditPackages.length === 3 && pkg.name.toLowerCase() === 'silver'
+              
+              return (
+                <Card
+                  key={pkg.id}
+                  className={cn(
+                    "bg-card relative",
+                    isPopular ? "border-primary border-2" : "border-border"
                   )}
-                </CardContent>
-                <CardFooter>
-                  {isCurrent ? (
-                    <Button variant="outline" className="w-full bg-transparent" disabled>
-                      Τρέχον Πακέτο
-                    </Button>
-                  ) : plan.id === "agency" ? (
-                    <Button 
-                      variant="outline" 
-                      className="w-full bg-transparent"
-                      onClick={() => handleCheckout(plan.id)}
-                      disabled={loading[plan.id]}
-                    >
-                      {loading[plan.id] ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Επεξεργασία...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="w-4 h-4 mr-2" />
-                          Αναβάθμιση
-                        </>
+                >
+                  {isPopular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
+                      Προτεινόμενο
+                    </div>
+                  )}
+                  <CardHeader>
+                    <CardTitle className="text-card-foreground">{pkg.name}</CardTitle>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-bold text-card-foreground">€{pkg.priceEUR.toLocaleString()}</span>
+                    </div>
+                    <CardDescription>
+                      {pkg.credits.toLocaleString()} credits
+                      {hasBonus && (
+                        <span className="text-primary font-medium ml-1">({pkg.bonus} bonus)</span>
                       )}
-                    </Button>
-                  ) : (
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {hasBonus ? (
+                          <>
+                            Παίρνετε <span className="font-semibold text-foreground">{pkg.credits.toLocaleString()} credits</span> για €{pkg.priceEUR.toLocaleString()}
+                            <br />
+                            <span className="text-primary">+{pkg.bonus} bonus credits</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-semibold text-foreground">{pkg.credits.toLocaleString()} credits</span> για €{pkg.priceEUR.toLocaleString()}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </CardContent>
+                  <CardFooter>
                     <Button 
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                      onClick={() => handleCheckout(plan.id)}
-                      disabled={loading[plan.id]}
+                      onClick={() => {
+                        setLoading({ ...loading, [pkg.id]: true })
+                        api.buyCredits(pkg.id).then((response) => {
+                          if (response.data?.url) {
+                            window.location.href = response.data.url
+                          } else {
+                            toast({
+                              title: "Error",
+                              description: "Failed to create checkout session",
+                              variant: "destructive",
+                            })
+                            setLoading({ ...loading, [pkg.id]: false })
+                          }
+                        }).catch((error: any) => {
+                          toast({
+                            title: "Error",
+                            description: error.message || "Failed to purchase credits",
+                            variant: "destructive",
+                          })
+                          setLoading({ ...loading, [pkg.id]: false })
+                        })
+                      }}
+                      disabled={loading[pkg.id]}
                     >
-                      {loading[plan.id] ? (
+                      {loading[pkg.id] ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Επεξεργασία...
@@ -576,15 +591,20 @@ function BillingPageInner() {
                       ) : (
                         <>
                           <Zap className="w-4 h-4 mr-2" />
-                          Αναβάθμιση
+                          Αγορά
                         </>
                       )}
                     </Button>
-                  )}
-                </CardFooter>
-              </Card>
-            )
-          })}
+                  </CardFooter>
+                </Card>
+              )
+            })
+          ) : (
+            <div className="col-span-3 text-center text-muted-foreground py-8">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              <p>Φόρτωση πακέτων...</p>
+            </div>
+          )}
         </div>
       </div>
 

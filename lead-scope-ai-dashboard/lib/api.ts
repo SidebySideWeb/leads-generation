@@ -1335,6 +1335,36 @@ class ApiClient {
   }
 
   /**
+   * Get available credit packages from Stripe
+   */
+  async getCreditPackages(): Promise<{
+    data: {
+      packages: Array<{
+        id: string;
+        productId: string;
+        name: string;
+        priceEUR: number;
+        credits: number;
+        bonus: string;
+      }>;
+    } | null;
+    meta: ResponseMeta;
+  }> {
+    return this.request<{
+      packages: Array<{
+        id: string;
+        productId: string;
+        name: string;
+        priceEUR: number;
+        credits: number;
+        bonus: string;
+      }>;
+    }>('/billing/credit-packages', {
+      method: 'GET',
+    });
+  }
+
+  /**
    * Create Stripe checkout session for credit purchase
    */
   async buyCredits(creditPackage: string): Promise<{

@@ -14,7 +14,7 @@ import { useBilling } from "@/contexts/BillingContext"
 import { api } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Zap, Check } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
 interface CreditPurchaseModalProps {
@@ -22,66 +22,52 @@ interface CreditPurchaseModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-const CREDIT_PACKAGES = [
-  {
-    id: 'bronze',
-    credits: 50,
-    price: '€50',
-    popular: false,
-    bonus: '0%',
-    name: 'Bronze',
-  },
-  {
-    id: 'silver',
-    credits: 120,
-    price: '€100',
-    popular: true,
-    bonus: '20%',
-    name: 'Silver',
-    savings: '20% bonus',
-  },
-  {
-    id: 'gold',
-    credits: 260,
-    price: '€200',
-    popular: false,
-    bonus: '30%',
-    name: 'Gold',
-    savings: '30% bonus',
-  },
-  // Legacy numeric keys for backward compatibility
-  {
-    id: '50',
-    credits: 50,
-    price: '€50',
-    popular: false,
-    bonus: '0%',
-    name: 'Bronze',
-  },
-  {
-    id: '120',
-    credits: 120,
-    price: '€100',
-    popular: true,
-    bonus: '20%',
-    name: 'Silver',
-    savings: '20% bonus',
-  },
-  {
-    id: '260',
-    credits: 260,
-    price: '€200',
-    popular: false,
-    bonus: '30%',
-    name: 'Gold',
-    savings: '30% bonus',
-  },
-]
+interface CreditPackage {
+  id: string
+  productId: string
+  name: string
+  priceEUR: number
+  credits: number
+  bonus: string
+}
 
 export function CreditPurchaseModal({ open, onOpenChange }: CreditPurchaseModalProps) {
   const { data, refetch } = useBilling()
   const { toast } = useToast()
   const [loading, setLoading] = useState<string | null>(null)
+  const [packages, setPackages] = useState<CreditPackage[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(true)
+
+  // Fetch credit packages from API
+  useEffect(() => {
+    if (open) {
+      fetchPackages()
+    }
+  }, [open])
+
+  const fetchPackages = async () => {
+    setPackagesLoading(true)
+    try {
+      const response = await api.getCreditPackages()
+      if (response.data?.packages) {
+        setPackages(response.data.packages)
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load credit packages",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load credit packages",
+        variant: "destructive",
+      })
+    } finally {
+      setPackagesLoading(false)
+    }
+  }
 
   const handlePurchase = async (packageId: string) => {
     setLoading(packageId)
@@ -107,6 +93,24 @@ export function CreditPurchaseModal({ open, onOpenChange }: CreditPurchaseModalP
     }
   }
 
+  // Determine which package is "popular" (middle one, or best value)
+  const getPopularPackageId = () => {
+    if (packages.length === 0) return null
+    // Mark the middle package as popular, or the one with best value (highest credits/price ratio)
+    if (packages.length === 3) {
+      return packages[1].id // Middle package
+    }
+    // Find package with best value
+    const bestValue = packages.reduce((best, pkg) => {
+      const value = pkg.credits / pkg.priceEUR
+      const bestValue = best.credits / best.priceEUR
+      return value > bestValue ? pkg : best
+    }, packages[0])
+    return bestValue.id
+  }
+
+  const popularPackageId = getPopularPackageId()
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
@@ -120,59 +124,74 @@ export function CreditPurchaseModal({ open, onOpenChange }: CreditPurchaseModalP
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 md:grid-cols-3 py-4">
-          {CREDIT_PACKAGES.map((pkg) => (
-            <Card
-              key={pkg.id}
-              className={cn(
-                "cursor-pointer transition-all hover:border-primary",
-                pkg.popular && "border-primary border-2"
-              )}
-              onClick={() => handlePurchase(pkg.id)}
-            >
-              {pkg.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-2 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                  Best Value
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="text-2xl">{pkg.name || `${pkg.credits.toLocaleString()} Credits`}</CardTitle>
-                <CardDescription>{pkg.credits.toLocaleString()} Credits</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="text-2xl font-bold">{pkg.price}</div>
-                  {pkg.savings && (
-                    <div className="text-xs text-primary font-medium">{pkg.savings}</div>
+        {packagesLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : packages.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No credit packages available
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3 py-4">
+            {packages.map((pkg) => {
+              const isPopular = pkg.id === popularPackageId
+              const hasBonus = pkg.bonus !== '0%'
+              
+              return (
+                <Card
+                  key={pkg.id}
+                  className={cn(
+                    "cursor-pointer transition-all hover:border-primary relative",
+                    isPopular && "border-primary border-2"
                   )}
-                  {pkg.bonus && pkg.bonus !== '0%' && (
-                    <div className="text-xs text-muted-foreground">Get {pkg.bonus} extra credits</div>
+                  onClick={() => handlePurchase(pkg.id)}
+                >
+                  {isPopular && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-2 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full z-10">
+                      Best Value
+                    </div>
                   )}
-                  <Button
-                    className="w-full"
-                    disabled={loading === pkg.id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handlePurchase(pkg.id)
-                    }}
-                  >
-                    {loading === pkg.id ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4 mr-2" />
-                        Purchase
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <CardHeader>
+                    <CardTitle className="text-2xl">{pkg.name || `${pkg.credits.toLocaleString()} Credits`}</CardTitle>
+                    <CardDescription>{pkg.credits.toLocaleString()} Credits</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="text-2xl font-bold">€{pkg.priceEUR.toLocaleString()}</div>
+                      {hasBonus && (
+                        <>
+                          <div className="text-xs text-primary font-medium">{pkg.bonus} bonus</div>
+                          <div className="text-xs text-muted-foreground">Get {pkg.bonus} extra credits</div>
+                        </>
+                      )}
+                      <Button
+                        className="w-full"
+                        disabled={loading === pkg.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handlePurchase(pkg.id)
+                        }}
+                      >
+                        {loading === pkg.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-4 h-4 mr-2" />
+                            Purchase
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

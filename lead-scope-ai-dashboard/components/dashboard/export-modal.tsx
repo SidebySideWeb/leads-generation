@@ -99,7 +99,8 @@ export function ExportModal({
   }
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId)
-  const datasetSize = selectedDataset?.businesses || 0
+  // Use contacts count (businesses with email or phone) instead of total businesses
+  const datasetSize = selectedDataset?.contacts || 0
 
   // Update endRow when dataset changes
   useEffect(() => {
@@ -210,8 +211,8 @@ export function ExportModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[700px] lg:max-w-[850px] max-h-[95vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 sm:pb-4 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex-shrink-0">
               <Download className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
@@ -225,7 +226,7 @@ export function ExportModal({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6 py-2 sm:py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 sm:space-y-6 py-2 sm:py-4">
           {/* Dataset Selector */}
           <div className="space-y-2 sm:space-y-3">
             <Label htmlFor="dataset-select" className="text-sm font-medium text-foreground">
@@ -352,7 +353,7 @@ export function ExportModal({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Rows are ordered alphabetically by business name. Select the range you want to export.
+                Rows are ordered alphabetically by business name. Only businesses with email or phone are included. Select the range you want to export (max: {datasetSize.toLocaleString()} contacts).
               </p>
             </div>
           )}
@@ -413,6 +414,12 @@ export function ExportModal({
               <div className="pt-2 border-t border-border">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs sm:text-sm text-muted-foreground">Total Businesses</span>
+                  <span className="text-base sm:text-lg font-medium text-foreground">
+                    {selectedDataset.businesses.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <span className="text-xs sm:text-sm text-muted-foreground">Available Contacts</span>
                   <span className="text-base sm:text-lg font-bold text-primary">
                     {datasetSize.toLocaleString()}
                   </span>
@@ -433,7 +440,7 @@ export function ExportModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-border">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6 border-t border-border flex-shrink-0">
           <Button 
             variant="outline" 
             onClick={handleClose} 

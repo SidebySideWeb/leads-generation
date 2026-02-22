@@ -103,23 +103,21 @@ export function ExportModal({
   // Fallback to 0 if contacts is undefined, null, or 0
   const datasetSize = selectedDataset?.contacts ?? 0
 
-  // Update endRow when dataset changes
+  // Update endRow when dataset changes (only set default if empty)
   useEffect(() => {
-    if (selectedDataset && datasetSize > 0) {
-      if (!endRow || parseInt(endRow) > datasetSize) {
-        setEndRow(datasetSize.toString())
-      }
-      if (parseInt(startRow) > datasetSize) {
-        setStartRow('1')
-      }
+    if (selectedDataset && datasetSize > 0 && !endRow) {
+      setEndRow(datasetSize.toString())
+    } else if (selectedDataset && !endRow) {
+      // If no contacts, set default to 1
+      setEndRow('1')
     }
-  }, [selectedDataset, datasetSize, endRow, startRow])
+  }, [selectedDataset, datasetSize])
 
   // Calculate selected row count and cost
   const selectedRowCount = useMemo(() => {
     const start = parseInt(startRow) || 1
-    const end = parseInt(endRow) || datasetSize
-    if (start < 1 || end < start || end > datasetSize) {
+    const end = parseInt(endRow) || (datasetSize > 0 ? datasetSize : 1)
+    if (start < 1 || end < start) {
       return 0
     }
     return end - start + 1
@@ -134,8 +132,9 @@ export function ExportModal({
     if (!selectedDatasetId || !selectedDataset) return false
     const start = parseInt(startRow) || 0
     const end = parseInt(endRow) || 0
-    return start >= 1 && end >= start && end <= datasetSize && selectedRowCount > 0
-  }, [selectedDatasetId, selectedDataset, startRow, endRow, datasetSize, selectedRowCount])
+    // Allow export even if range exceeds contacts - backend will handle it
+    return start >= 1 && end >= start && selectedRowCount > 0
+  }, [selectedDatasetId, selectedDataset, startRow, endRow, selectedRowCount])
 
   // Check if range exceeds contacts count
   const rangeExceedsContacts = useMemo(() => {
@@ -305,7 +304,7 @@ export function ExportModal({
           </div>
 
           {/* Row Range Selector */}
-          {selectedDataset && datasetSize > 0 && (
+          {selectedDataset && (
             <div className="space-y-2 sm:space-y-3">
               <Label htmlFor="row-range" className="text-sm font-medium text-foreground">
                 Row Range (Alphabetical Order)
@@ -345,16 +344,16 @@ export function ExportModal({
                         setEndRow(val)
                       }
                     }}
-                    placeholder={datasetSize.toString()}
-                    className={cn("h-9 sm:h-10", rangeExceedsContacts && "border-destructive focus-visible:ring-destructive")}
+                    placeholder={datasetSize > 0 ? datasetSize.toString() : "1"}
+                    className="h-9 sm:h-10"
                   />
                 </div>
               </div>
-              {rangeExceedsContacts && (
-                <Alert className="bg-destructive/10 border-destructive/20">
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                  <AlertDescription className="text-xs sm:text-sm text-destructive">
-                    Maximum range is {datasetSize.toLocaleString()} contacts. Please enter a value ≤ {datasetSize.toLocaleString()}.
+              {rangeExceedsContacts && datasetSize > 0 && (
+                <Alert className="bg-warning/10 border-warning/20">
+                  <AlertCircle className="h-4 w-4 text-warning" />
+                  <AlertDescription className="text-xs sm:text-sm text-muted-foreground">
+                    Note: Maximum available contacts is {datasetSize.toLocaleString()}. Export will include only available contacts in the specified range.
                   </AlertDescription>
                 </Alert>
               )}

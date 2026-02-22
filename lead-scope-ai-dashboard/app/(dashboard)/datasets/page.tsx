@@ -77,6 +77,28 @@ export default function DatasetsPage() {
       try {
         setLoading(true)
         console.log('[DatasetsPage] Fetching datasets from API...')
+        
+        // Load all discovery runs first (needed for completeness calculation)
+        let allRuns: Array<{
+          id: string;
+          dataset_id: string;
+          status: 'running' | 'completed' | 'failed';
+          created_at: string;
+          completed_at: string | null;
+          businesses_found: number;
+          dataset_name: string;
+          industry_name: string;
+          city_name: string | null;
+        }> = []
+        try {
+          const discoveryRunsRes = await api.getAllDiscoveryRuns()
+          if (discoveryRunsRes.data) {
+            allRuns = discoveryRunsRes.data
+          }
+        } catch (e) {
+          // Ignore discovery runs errors
+        }
+        
         const response = await api.getDatasets()
         console.log('[DatasetsPage] API response:', { 
           hasData: !!response.data, 
@@ -87,27 +109,6 @@ export default function DatasetsPage() {
         if (response.data) {
           setDatasets(response.data)
           console.log('[DatasetsPage] Loaded datasets:', response.data.length)
-          
-          // Load all discovery runs first (already being loaded below, but we'll use it here too)
-          let allRuns: Array<{
-            id: string;
-            dataset_id: string;
-            status: 'running' | 'completed' | 'failed';
-            created_at: string;
-            completed_at: string | null;
-            businesses_found: number;
-            dataset_name: string;
-            industry_name: string;
-            city_name: string | null;
-          }> = []
-          try {
-            const discoveryRunsRes = await api.getAllDiscoveryRuns()
-            if (discoveryRunsRes.data) {
-              allRuns = discoveryRunsRes.data
-            }
-          } catch (e) {
-            // Ignore discovery runs errors
-          }
           
           // Fetch completeness data for all datasets in parallel
           const completeness: Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }> = {}

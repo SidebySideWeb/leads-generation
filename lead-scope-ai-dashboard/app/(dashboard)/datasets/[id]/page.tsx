@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,7 @@ const statusConfig = {
 
 export default function DatasetDetailPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const datasetId = params.id as string
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [contactTypeFilter, setContactTypeFilter] = useState<string>("all")
@@ -81,7 +82,22 @@ export default function DatasetDetailPage() {
     created_at: string;
     completed_at: string | null;
   }>>([])
+  const [showExportModal, setShowExportModal] = useState(false)
   const { toast } = useToast()
+
+  // Check for export query parameter
+  useEffect(() => {
+    const exportParam = searchParams.get('export')
+    if (exportParam === 'true' && dataset && discoveryRuns.length > 0) {
+      // Check if discovery is completed before opening export modal
+      const latestRun = discoveryRuns[0]
+      if (latestRun.status === 'completed') {
+        setShowExportModal(true)
+        // Remove the query parameter from URL
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+  }, [searchParams, dataset, discoveryRuns])
 
   useEffect(() => {
     async function loadData() {
@@ -212,7 +228,13 @@ export default function DatasetDetailPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <ExportButton datasetId={datasetId} dataset={dataset} discoveryRuns={discoveryRuns} />
+            <ExportButton 
+              datasetId={datasetId} 
+              dataset={dataset} 
+              discoveryRuns={discoveryRuns}
+              externalOpen={showExportModal}
+              onOpenChange={setShowExportModal}
+            />
           </div>
         </div>
       </div>

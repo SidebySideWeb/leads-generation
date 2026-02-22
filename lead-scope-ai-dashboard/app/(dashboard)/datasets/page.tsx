@@ -88,9 +88,32 @@ export default function DatasetsPage() {
           setDatasets(response.data)
           console.log('[DatasetsPage] Loaded datasets:', response.data.length)
           
-          // Fetch completeness data for each dataset
+          // Load all discovery runs first (already being loaded below, but we'll use it here too)
+          let allRuns: Array<{
+            id: string;
+            dataset_id: string;
+            status: 'running' | 'completed' | 'failed';
+            created_at: string;
+            completed_at: string | null;
+            businesses_found: number;
+            dataset_name: string;
+            industry_name: string;
+            city_name: string | null;
+          }> = []
+          try {
+            const discoveryRunsRes = await api.getAllDiscoveryRuns()
+            if (discoveryRunsRes.data) {
+              allRuns = discoveryRunsRes.data
+            }
+          } catch (e) {
+            // Ignore discovery runs errors
+          }
+          
+          // Fetch completeness data for all datasets in parallel
           const completeness: Record<string, { withEmail: number; withPhone: number; withWebsite: number; lastDiscovery: string | null }> = {}
-          for (const dataset of response.data) {
+          
+          // Make all API calls in parallel
+          const completenessPromises = response.data.map(async (dataset) => {
             try {
               const businessesRes = await api.getBusinesses(dataset.id, { limit: 100 })
               if (businessesRes.data && businessesRes.data.length > 0) {
@@ -99,52 +122,53 @@ export default function DatasetsPage() {
                 const withPhone = businesses.filter(b => b.phone).length
                 const withWebsite = businesses.filter(b => b.website).length
                 
-                // Get last discovery date from discovery runs
+                // Get last discovery date from already-loaded discovery runs
                 let lastDiscovery: string | null = null
-                try {
-                  const discoveryRunsRes = await api.getDiscoveryRuns(dataset.id)
-                  if (discoveryRunsRes.data && discoveryRunsRes.data.length > 0) {
-                    const completedRuns = discoveryRunsRes.data.filter(run => run.status === 'completed' && run.completed_at)
-                    if (completedRuns.length > 0) {
-                      lastDiscovery = completedRuns.sort((a, b) => 
-                        new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime()
-                      )[0].completed_at!
-                    }
+                const datasetRuns = allRuns.filter(run => run.dataset_id === dataset.id)
+                if (datasetRuns.length > 0) {
+                  const completedRuns = datasetRuns.filter(run => run.status === 'completed' && run.completed_at)
+                  if (completedRuns.length > 0) {
+                    lastDiscovery = completedRuns.sort((a, b) => 
+                      new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime()
+                    )[0].completed_at!
                   }
-                } catch (e) {
-                  // Ignore discovery runs errors
                 }
                 
                 // Estimate percentages based on sample
                 const sampleSize = businesses.length
-                completeness[dataset.id] = {
-                  withEmail: Math.round((withEmail / sampleSize) * 100),
-                  withPhone: Math.round((withPhone / sampleSize) * 100),
-                  withWebsite: Math.round((withWebsite / sampleSize) * 100),
-                  lastDiscovery,
+                return {
+                  datasetId: dataset.id,
+                  data: {
+                    withEmail: Math.round((withEmail / sampleSize) * 100),
+                    withPhone: Math.round((withPhone / sampleSize) * 100),
+                    withWebsite: Math.round((withWebsite / sampleSize) * 100),
+                    lastDiscovery,
+                  }
                 }
               }
             } catch (e) {
               // Ignore individual dataset errors
               console.error(`[DatasetsPage] Error loading completeness for dataset ${dataset.id}:`, e)
             }
-          }
+            return null
+          })
+          
+          // Wait for all completeness data to load
+          const completenessResults = await Promise.all(completenessPromises)
+          completenessResults.forEach(result => {
+            if (result) {
+              completeness[result.datasetId] = result.data
+            }
+          })
+          
           setDatasetCompleteness(completeness)
         } else {
           console.log('[DatasetsPage] No datasets in response')
         }
         setMeta(response.meta)
 
-        // Load all discovery runs
-        try {
-          const discoveryRunsRes = await api.getAllDiscoveryRuns()
-          if (discoveryRunsRes.data) {
-            setAllDiscoveryRuns(discoveryRunsRes.data)
-          }
-        } catch (error) {
-          console.error('[DatasetsPage] Error loading discovery runs:', error)
-          // Don't fail the page if discovery runs fail to load
-        }
+        // Set discovery runs (already loaded above for completeness calculation)
+        setAllDiscoveryRuns(allRuns)
       } catch (error) {
         console.error('[DatasetsPage] Error loading datasets:', error)
         if (error instanceof NetworkError) {

@@ -20,10 +20,21 @@ interface ExportButtonProps {
     created_at: string;
     completed_at: string | null;
   }>
+  externalOpen?: boolean // Allow external control of modal
+  onOpenChange?: (open: boolean) => void // Callback when modal open state changes
 }
 
-export function ExportButton({ datasetId, dataset: datasetProp, onExportComplete, discoveryRuns = [] }: ExportButtonProps) {
+export function ExportButton({ datasetId, dataset: datasetProp, onExportComplete, discoveryRuns = [], externalOpen, onOpenChange }: ExportButtonProps) {
   const [modalOpen, setModalOpen] = useState(false)
+  
+  // Use external open state if provided
+  const isModalOpen = externalOpen !== undefined ? externalOpen : modalOpen
+  const setModalOpenState = (open: boolean) => {
+    if (externalOpen === undefined) {
+      setModalOpen(open)
+    }
+    onOpenChange?.(open)
+  }
   const [dataset, setDataset] = useState<Dataset | null>(datasetProp || null)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
@@ -76,7 +87,7 @@ export function ExportButton({ datasetId, dataset: datasetProp, onExportComplete
       return
     }
     
-    setModalOpen(true)
+    setModalOpenState(true)
   }
 
   return (
@@ -101,8 +112,8 @@ export function ExportButton({ datasetId, dataset: datasetProp, onExportComplete
       </Button>
 
       <ExportModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
+        open={isModalOpen}
+        onOpenChange={setModalOpenState}
         dataset={dataset}
         onComplete={() => {
           if (onExportComplete) {

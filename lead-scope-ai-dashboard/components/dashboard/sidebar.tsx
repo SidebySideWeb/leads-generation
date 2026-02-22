@@ -55,18 +55,6 @@ export function Sidebar() {
           )
         })}
       </nav>
-      <div className="px-4 py-4 border-t border-sidebar-border">
-        <div className="px-3 py-3 rounded-lg bg-sidebar-accent/50">
-          <p className="text-xs text-muted-foreground mb-1">Current Plan</p>
-          <p className="text-sm font-medium text-sidebar-foreground">Snapshot</p>
-          <Link
-            href="/billing"
-            className="text-xs text-primary hover:underline"
-          >
-            Upgrade to Professional
-          </Link>
-        </div>
-      </div>
     </aside>
   )
 }

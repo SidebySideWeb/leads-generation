@@ -26,7 +26,7 @@ import { CreditDashboard } from "@/components/dashboard/credit-dashboard"
 import { CreditPurchaseModal } from "@/components/dashboard/credit-purchase-modal"
 import { useBilling } from "@/contexts/BillingContext"
 
-// Plan configuration matching requirements
+// Plan configuration matching backend entitlements and plan limits
 const plans = [
   {
     id: "starter",
@@ -35,16 +35,20 @@ const plans = [
     period: "/μήνα",
     description: "Για μικρές επιχειρήσεις και ξεκινήματα",
     features: [
-      "3 discoveries / μήνα",
-      "Έως 500 επιχειρήσεις ανά dataset",
-      "Έως 1 export / μήνα",
+      "500 credits / μήνα",
+      "10 discoveries / μήνα",
+      "10 exports / μήνα",
+      "Έως 2.000 επιχειρήσεις ανά dataset",
+      "5 datasets",
       "Refresh διαθέσιμο (επιπλέον χρέωση)",
     ],
     limits: {
-      discoveriesPerMonth: 3,
-      maxDatasetSize: 500,
-      maxExportSize: 500,
-      exportsPerMonth: 1,
+      creditsPerMonth: 500,
+      discoveriesPerMonth: 10,
+      maxDatasetSize: 2000,
+      maxExportSize: 2000,
+      exportsPerMonth: 10,
+      maxDatasets: 5,
       refreshAvailable: true,
       refreshType: "standard" as const,
     },
@@ -57,16 +61,20 @@ const plans = [
     period: "/μήνα",
     description: "Για μεγάλες επιχειρήσεις και ομάδες",
     features: [
-      "10 discoveries / μήνα",
-      "Έως 2.000 επιχειρήσεις ανά dataset",
-      "Έως 5 exports / μήνα",
+      "3.000 credits / μήνα",
+      "100 discoveries / μήνα",
+      "50 exports / μήνα",
+      "Unlimited επιχειρήσεις ανά dataset",
+      "20 datasets",
       "Priority refresh",
     ],
     limits: {
-      discoveriesPerMonth: 10,
-      maxDatasetSize: 2000,
-      maxExportSize: 2000,
-      exportsPerMonth: 5,
+      creditsPerMonth: 3000,
+      discoveriesPerMonth: 100,
+      maxDatasetSize: Infinity,
+      maxExportSize: Infinity,
+      exportsPerMonth: 50,
+      maxDatasets: 20,
       refreshAvailable: true,
       refreshType: "priority" as const,
     },
@@ -79,16 +87,20 @@ const plans = [
     period: "/μήνα",
     description: "Για agencies με υψηλές ανάγκες",
     features: [
+      "Unlimited credits*",
       "Unlimited discoveries*",
-      "Έως 10.000 επιχειρήσεις ανά dataset",
-      "Unlimited exports",
+      "100 exports / μήνα",
+      "Έως 50.000 επιχειρήσεις ανά dataset",
+      "Unlimited datasets",
       "Advanced refresh",
     ],
     limits: {
+      creditsPerMonth: Infinity,
       discoveriesPerMonth: Infinity,
-      maxDatasetSize: 10000,
+      maxDatasetSize: 50000,
       maxExportSize: Infinity,
-      exportsPerMonth: Infinity,
+      exportsPerMonth: 100,
+      maxDatasets: Infinity,
       refreshAvailable: true,
       refreshType: "advanced" as const,
     },
@@ -102,10 +114,12 @@ const getPlanLimits = (planId: string) => {
   const plan = plans.find(p => p.id === planId)
   if (!plan) {
     return {
+      creditsPerMonth: 0,
       discoveriesPerMonth: 0,
       exportsPerMonth: 0,
       maxDatasetSize: 0,
       maxExportSize: 0,
+      maxDatasets: 0,
       refreshAvailable: false,
       refreshType: "standard" as const,
     }
@@ -326,9 +340,11 @@ function BillingPageInner() {
       <Alert className="bg-primary/5 border-primary/20">
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription className="text-sm text-muted-foreground">
-          <strong className="text-foreground">Τα πακέτα καθορίζουν τα όρια χρήσης της πλατφόρμας.</strong>
+          <strong className="text-foreground">Τα πακέτα καθορίζουν τα όρια χρήσης και τα credits.</strong>
           <br />
-          Η χρέωση δεδομένων γίνεται μόνο όταν εξάγετε αποτελέσματα ή ζητάτε ανανέωση στοιχείων.
+          <strong className="text-foreground">Credit Costs:</strong> Discovery (0.2 credits/business), Export (0.05 credits/row)
+          <br />
+          Η χρέωση γίνεται μόνο όταν εξάγετε αποτελέσματα. Μπορείτε να αγοράσετε επιπλέον credits αν χρειαστεί.
         </AlertDescription>
       </Alert>
 
@@ -385,6 +401,27 @@ function BillingPageInner() {
                 <div className="space-y-4">
                   <h4 className="text-sm font-medium text-foreground">Χρήση αυτού του μήνα</h4>
                   
+                  {/* Credits Used */}
+                  {billingData && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          <Zap className="w-4 h-4" />
+                          Credits διαθέσιμα
+                        </span>
+                        <span className="font-medium text-foreground">
+                          {billingData.credits.toLocaleString()} {planLimits.creditsPerMonth === Infinity ? '' : `/ ${planLimits.creditsPerMonth.toLocaleString()}`}
+                        </span>
+                      </div>
+                      {planLimits.creditsPerMonth !== Infinity && (
+                        <Progress 
+                          value={Math.min((billingData.credits / planLimits.creditsPerMonth) * 100, 100)} 
+                          className="h-2"
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {/* Discoveries Used */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">

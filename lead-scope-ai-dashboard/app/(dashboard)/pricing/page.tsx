@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation"
 import { useBilling } from "@/contexts/BillingContext"
 import { Skeleton } from "@/components/ui/skeleton"
 
+// Plan configuration matching backend planLimits.ts and entitlements.ts
 const PLANS = [
   {
     id: "demo",
@@ -151,9 +152,34 @@ export default function PricingPage() {
           </div>
           <div>
             <span className="text-muted-foreground">Export Row:</span>{" "}
-            <span className="font-medium">0.1 credits</span>
+            <span className="font-medium">0.05 credits</span>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          <strong>Note:</strong> Credits are consumed only when you export results. Discovery is free within your plan limits.
+        </p>
+      </div>
+
+      {/* Credit Packages Info */}
+      <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
+        <h3 className="font-semibold mb-2">Purchase Additional Credits</h3>
+        <div className="grid md:grid-cols-3 gap-4 text-sm">
+          <div className="p-3 bg-background rounded border">
+            <div className="font-medium">Bronze</div>
+            <div className="text-muted-foreground">50 credits for €50</div>
+          </div>
+          <div className="p-3 bg-background rounded border border-primary">
+            <div className="font-medium">Silver <span className="text-xs text-primary">(Best Value)</span></div>
+            <div className="text-muted-foreground">120 credits for €100 (20% bonus)</div>
+          </div>
+          <div className="p-3 bg-background rounded border">
+            <div className="font-medium">Gold</div>
+            <div className="text-muted-foreground">260 credits for €200 (30% bonus)</div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          Credits never expire. Purchase from the Billing page when needed.
+        </p>
       </div>
 
       {/* Pricing Cards */}

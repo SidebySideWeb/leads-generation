@@ -42,15 +42,15 @@ export function DiscoveryCompletionModal({
   const handleSave = () => {
     onSave?.()
     onOpenChange(false)
-    // Navigate to dataset page
-    router.push(`/datasets/${datasetId}`)
+    // Navigate to saved datasets list
+    router.push(`/datasets`)
   }
 
   const handleExport = () => {
     onExport?.()
     onOpenChange(false)
-    // Navigate to dataset page with export intent
-    router.push(`/datasets/${datasetId}?export=true`)
+    // Navigate to specific dataset page; user can choose actions there (e.g. export)
+    router.push(`/datasets/${datasetId}`)
   }
 
   const handleAbort = () => {

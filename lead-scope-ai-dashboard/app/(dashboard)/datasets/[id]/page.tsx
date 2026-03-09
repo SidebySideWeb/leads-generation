@@ -85,20 +85,6 @@ export default function DatasetDetailPage() {
   const [showExportModal, setShowExportModal] = useState(false)
   const { toast } = useToast()
 
-  // Check for export query parameter
-  useEffect(() => {
-    const exportParam = searchParams.get('export')
-    if (exportParam === 'true' && dataset && discoveryRuns.length > 0) {
-      // Check if discovery is completed before opening export modal
-      const latestRun = discoveryRuns[0]
-      if (latestRun.status === 'completed') {
-        setShowExportModal(true)
-        // Remove the query parameter from URL
-        window.history.replaceState({}, '', window.location.pathname)
-      }
-    }
-  }, [searchParams, dataset, discoveryRuns])
-
   useEffect(() => {
     async function loadData() {
       try {

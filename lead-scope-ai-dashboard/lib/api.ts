@@ -657,54 +657,8 @@ class ApiClient {
    * @returns Promise with checkout session URL
    */
   async createCheckoutSession(planId: string, userId: string): Promise<{ data: { sessionId: string; url: string } | null; meta: ResponseMeta }> {
-    // Call Next.js API route (not backend) - it handles Stripe checkout
-    const url = typeof window !== 'undefined' ? '/api/checkout' : `${this._baseUrl}/api/checkout`;
-    console.log('[API] Creating checkout session for plan:', planId);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ planId }),
-    });
-
-    console.log('[API] Checkout response status:', response.status);
-
-    if (!response.ok) {
-      let errorMessage = 'Failed to create checkout session';
-      try {
-        const error = await response.json();
-        errorMessage = error.error || error.message || errorMessage;
-        console.error('[API] Checkout error:', error);
-      } catch (e) {
-        // If response is not JSON, use status text
-        errorMessage = response.status === 503 
-          ? 'Payment processing is not available. Please contact support.'
-          : `HTTP ${response.status}: ${response.statusText}`;
-      }
-      return {
-        data: null,
-        meta: {
-          plan_id: 'demo',
-          gated: false,
-          total_available: 0,
-          total_returned: 0,
-          gate_reason: errorMessage,
-        },
-      };
-    }
-
-    const json = await response.json();
-    return {
-      data: json,
-      meta: {
-        plan_id: 'demo',
-        gated: false,
-        total_available: 1,
-        total_returned: 1,
-      },
-    };
+    void userId; // Kept for backward compatibility with existing call sites
+    return this.createBillingCheckout(planId);
   }
 
   /**

@@ -4,17 +4,17 @@ import Stripe from 'stripe'
 
 // Plan configuration
 const plans = {
-  snapshot: {
-    priceId: process.env.STRIPE_PRICE_SNAPSHOT || 'price_snapshot', // You'll need to create these in Stripe
-    amount: 3000, // €30.00 in cents
+  starter: {
+    priceId: process.env.STRIPE_PRICE_STARTER || process.env.STRIPE_PRICE_ID_STARTER || '',
+    mode: 'subscription' as const,
   },
-  professional: {
-    priceId: process.env.STRIPE_PRICE_PROFESSIONAL || 'price_professional',
-    amount: 9900, // €99.00 in cents
+  pro: {
+    priceId: process.env.STRIPE_PRICE_PROFESSIONAL || process.env.STRIPE_PRICE_ID_PRO || '',
+    mode: 'subscription' as const,
   },
   agency: {
-    priceId: process.env.STRIPE_PRICE_AGENCY || 'price_agency',
-    amount: 29900, // €299.00 in cents
+    priceId: process.env.STRIPE_PRICE_AGENCY || '',
+    mode: 'subscription' as const,
   },
 }
 
@@ -55,31 +55,23 @@ export const POST = withGuard(async (request: GuardedRequest) => {
         { status: 400 }
       )
     }
+    if (!plan.priceId) {
+      return NextResponse.json(
+        { error: 'Stripe price ID not configured for this plan' },
+        { status: 400 }
+      )
+    }
 
     // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: `${planId === 'snapshot' ? 'Snapshot' : planId === 'professional' ? 'Professional' : 'Agency'} Plan`,
-              description: planId === 'snapshot' 
-                ? 'One-time export, no updates'
-                : planId === 'professional'
-                ? 'Monthly subscription for growing teams'
-                : 'Monthly subscription for agencies',
-            },
-            unit_amount: plan.amount,
-            recurring: planId === 'snapshot' ? undefined : {
-              interval: 'month',
-            },
-          },
+          price: plan.priceId,
           quantity: 1,
         },
       ],
-      mode: planId === 'snapshot' ? 'payment' : 'subscription',
+      mode: plan.mode,
       success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/billing?canceled=true`,
       client_reference_id: userId,

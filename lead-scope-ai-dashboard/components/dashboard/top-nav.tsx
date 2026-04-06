@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
@@ -45,6 +45,7 @@ const mobileNavItems = [
 
 export function TopNav() {
   const pathname = usePathname()
+  const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
@@ -79,6 +80,20 @@ export function TopNav() {
     'agency': 'Agency',
   }
   const planLabel = planLabels[userPlan] || 'Demo'
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+    } catch (error) {
+      console.error("[TopNav] Logout request failed:", error)
+    } finally {
+      router.push("/login")
+      router.refresh()
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 flex items-center justify-between h-14 px-4 lg:px-6 bg-background border-b border-border">
@@ -178,7 +193,13 @@ export function TopNav() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive cursor-pointer">
+            <DropdownMenuItem
+              className="text-destructive cursor-pointer"
+              onSelect={(event) => {
+                event.preventDefault()
+                void handleLogout()
+              }}
+            >
               <LogOut className="w-4 h-4 mr-2" />
               Log out
             </DropdownMenuItem>

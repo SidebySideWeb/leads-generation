@@ -55,7 +55,7 @@ const plans = [
     popular: false,
   },
   {
-    id: "professional",
+    id: "pro",
     name: "Pro",
     price: "€99",
     period: "/μήνα",
@@ -274,7 +274,7 @@ function BillingPageInner() {
         return
       }
 
-      const response = await api.createCheckoutSession(planId, userResponse.data.id)
+      const response = await api.createBillingCheckout(planId)
 
       if (!response.data || !response.data.url) {
         toast({
@@ -305,11 +305,12 @@ function BillingPageInner() {
     }
   }
 
-  // Map user plan to plan ID (handle snapshot -> starter, professional -> pro)
+  // Map user plan to plan ID (handle legacy aliases)
   const getUserPlanId = (plan: string | undefined): string => {
     if (!plan || plan === 'demo') return 'demo'
     if (plan === 'snapshot') return 'starter'
-    if (plan === 'professional' || plan === 'pro') return 'professional'
+    if (plan === 'professional' || plan === 'pro') return 'pro'
+    if (plan === 'agency') return 'pro'
     return plan
   }
   
